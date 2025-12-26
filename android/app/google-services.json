@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "248568937026",
+    "project_id": "parking-slot-339c5",
+    "storage_bucket": "parking-slot-339c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:248568937026:android:a82429773a98c3db6acbdb",
+        "android_client_info": {
+          "package_name": "com.example.parking_slot"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "248568937026-k1bd1m9i6fmm02h4iubc74tv4rk53ufd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.parking_slot",
+            "certificate_hash": "2821ced4581f48c3f65b666114d7286fa682e765"
+          }
+        },
+        {
+          "client_id": "248568937026-k5aupej0albb6bj6orast5ckeo7og112.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3pYYMXR8ZK39dS7a9rHHtQZHz2e4Vdzw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "248568937026-k5aupej0albb6bj6orast5ckeo7og112.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "248568937026-cbdh2jtakpmfc6f51ht2hruus08o2rmt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.parkingSlot"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
