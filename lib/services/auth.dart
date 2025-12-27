@@ -6,6 +6,9 @@ class AuthService {
 
   Future<User?> signInWithGoogle() async {
     try {
+      // Sign out first to force account selection
+      await GoogleSignIn().signOut();
+
       final GoogleSignInAccount? googleUser =
       await GoogleSignIn().signIn();
 
@@ -27,5 +30,10 @@ class AuthService {
       print('Google Sign-In Error: $e');
       return null;
     }
+  }
+
+  Future<void> signOut() async {
+    await GoogleSignIn().signOut();
+    await _auth.signOut();
   }
 }

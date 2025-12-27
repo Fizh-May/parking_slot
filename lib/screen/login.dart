@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:parking_slot/screen/dashboard.dart';
 import 'package:parking_slot/screen/waiting_active.dart';
+import 'package:parking_slot/screen/admin.dart';
 import 'package:parking_slot/services/auth.dart';
 import 'package:parking_slot/services/user.dart';
 
@@ -90,11 +91,20 @@ class LoginScreen extends StatelessWidget {
                         final userService = UserService();
                         final isActive = await userService.isUserActive(user.uid);
                         if (isActive){
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (_) => DashboardScreen()),
-                                (route) => false,
-                          );
+                          final isAdmin = await userService.isAdmin(user.uid);
+                          if (isAdmin) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => AdminScreen()),
+                                  (route) => false,
+                            );
+                          } else {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => DashboardScreen()),
+                                  (route) => false,
+                            );
+                          }
                         } else {
                           Navigator.push(context, MaterialPageRoute(builder: (context) {
                             return WaitingActiveScreen();

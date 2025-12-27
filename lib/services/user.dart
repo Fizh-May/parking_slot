@@ -41,6 +41,6 @@ class UserService {
   Future<bool> isAdmin(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     final data = doc.data();
-    return (data?['role'] as bool?) ?? false;
+    return (data?['role'] as String?) == 'admin';
   }
 }

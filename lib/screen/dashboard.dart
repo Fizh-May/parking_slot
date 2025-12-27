@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/data.dart';
 import 'zone_details.dart';
+import '../services/auth.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -11,6 +12,15 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text("Parking Zones", style: TextStyle(fontSize: 25, color: Colors.white),),
         backgroundColor: Colors.blue,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () async {
+              await AuthService().signOut();
+              Navigator.of(context).pushReplacementNamed('/login');
+            },
+          ),
+        ],
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
