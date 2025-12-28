@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum SlotStatus { available, reserved, occupied }
 
@@ -9,6 +10,8 @@ class Zone {
   final int availableSlots;
   final int reservedSlots;
   final int occupiedSlots;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Zone({
     required this.id,
@@ -17,234 +20,218 @@ class Zone {
     required this.availableSlots,
     required this.reservedSlots,
     required this.occupiedSlots,
+    required this.createdAt,
+    required this.updatedAt,
   });
+
+  factory Zone.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return Zone(
+      id: data['id'] ?? doc.id,
+      name: data['name'] ?? '',
+      totalSlots: data['totalSlots'] ?? 0,
+      availableSlots: data['availableSlots'] ?? 0,
+      reservedSlots: data['reservedSlots'] ?? 0,
+      occupiedSlots: data['occupiedSlots'] ?? 0,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'id': id,
+      'name': name,
+      'totalSlots': totalSlots,
+      'availableSlots': availableSlots,
+      'reservedSlots': reservedSlots,
+      'occupiedSlots': occupiedSlots,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
 }
 
 class Slot {
   final String id;
   final String zoneId;
-  final String name;
+  final String slotLocation;
+  final String slotName;
+  final bool isAvailable;
+  final bool isOccupied;
+  final bool isReserved;
   final SlotStatus status;
   final DateTime? reservedStart;
   final DateTime? reservedEnd;
   final String? userId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Slot({
     required this.id,
     required this.zoneId,
-    required this.name,
+    required this.slotLocation,
+    required this.slotName,
+    required this.isAvailable,
+    required this.isOccupied,
+    required this.isReserved,
     required this.status,
     this.reservedStart,
     this.reservedEnd,
     this.userId,
+    required this.createdAt,
+    required this.updatedAt,
   });
+
+  factory Slot.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return Slot(
+      id: data['id'] ?? doc.id,
+      zoneId: data['zoneId'] ?? '',
+      slotLocation: data['slotLocation'] ?? '',
+      slotName: data['slotName'] ?? '',
+      isAvailable: data['isAvailable'] ?? true,
+      isOccupied: data['isOccupied'] ?? false,
+      isReserved: data['isReserved'] ?? false,
+      status: _parseSlotStatus(data['status']),
+      reservedStart: (data['reservedStart'] as Timestamp?)?.toDate(),
+      reservedEnd: (data['reservedEnd'] as Timestamp?)?.toDate(),
+      userId: data['userId'],
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'id': id,
+      'zoneId': zoneId,
+      'slotLocation': slotLocation,
+      'slotName': slotName,
+      'isAvailable': isAvailable,
+      'isOccupied': isOccupied,
+      'isReserved': isReserved,
+      'status': status.toString().split('.').last,
+      'reservedStart': reservedStart != null ? Timestamp.fromDate(reservedStart!) : null,
+      'reservedEnd': reservedEnd != null ? Timestamp.fromDate(reservedEnd!) : null,
+      'userId': userId,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+
+  static SlotStatus _parseSlotStatus(String? status) {
+    switch (status) {
+      case 'reserved':
+        return SlotStatus.reserved;
+      case 'occupied':
+        return SlotStatus.occupied;
+      case 'available':
+      default:
+        return SlotStatus.available;
+    }
+  }
 }
 
-class Booking {
+class Reservation {
   final String id;
   final String userId;
   final String slotId;
-  final DateTime startTime;
-  final DateTime endTime;
+  final DateTime reservationStartTime;
+  final DateTime reservationEndTime;
+  final String status;
+  final bool extendedDuration;
   final DateTime createdAt;
   final bool isActive;
+  final DateTime? checkInTime;
+  final DateTime? checkOutTime;
+  final double? totalCost;
 
-  Booking({
+  Reservation({
     required this.id,
     required this.userId,
     required this.slotId,
-    required this.startTime,
-    required this.endTime,
+    required this.reservationStartTime,
+    required this.reservationEndTime,
+    required this.status,
+    required this.extendedDuration,
     required this.createdAt,
     required this.isActive,
+    this.checkInTime,
+    this.checkOutTime,
+    this.totalCost,
   });
+
+  factory Reservation.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return Reservation(
+      id: data['id'] ?? doc.id,
+      userId: data['userId'] ?? '',
+      slotId: data['slotId'] ?? '',
+      reservationStartTime: (data['reservationStartTime'] as Timestamp).toDate(),
+      reservationEndTime: (data['reservationEndTime'] as Timestamp).toDate(),
+      status: data['status'] ?? 'active',
+      extendedDuration: data['extendedDuration'] ?? false,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isActive: data['isActive'] ?? true,
+      checkInTime: (data['checkInTime'] as Timestamp?)?.toDate(),
+      checkOutTime: (data['checkOutTime'] as Timestamp?)?.toDate(),
+      totalCost: data['totalCost']?.toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'id': id,
+      'userId': userId,
+      'slotId': slotId,
+      'reservationStartTime': Timestamp.fromDate(reservationStartTime),
+      'reservationEndTime': Timestamp.fromDate(reservationEndTime),
+      'status': status,
+      'extendedDuration': extendedDuration,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'isActive': isActive,
+      'checkInTime': checkInTime != null ? Timestamp.fromDate(checkInTime!) : null,
+      'checkOutTime': checkOutTime != null ? Timestamp.fromDate(checkOutTime!) : null,
+      'totalCost': totalCost,
+    };
+  }
 }
 
-// Sample data
-List<Zone> sampleZones = [
-  Zone(
-    id: 'zone1',
-    name: 'Zone A - Ground Floor',
-    totalSlots: 10,
-    availableSlots: 5,
-    reservedSlots: 3,
-    occupiedSlots: 2,
-  ),
-  Zone(
-    id: 'zone2',
-    name: 'Zone B - First Floor',
-    totalSlots: 8,
-    availableSlots: 4,
-    reservedSlots: 2,
-    occupiedSlots: 2,
-  ),
-  Zone(
-    id: 'zone3',
-    name: 'Zone C - Second Floor',
-    totalSlots: 12,
-    availableSlots: 7,
-    reservedSlots: 3,
-    occupiedSlots: 2,
-  ),
-];
+class ParkingUsageHistory {
+  final String id;
+  final String userId;
+  final String slotId;
+  final DateTime usageStartTime;
+  final DateTime usageEndTime;
+  final String reservationId;
+  final String status;
 
-List<Slot> sampleSlots = [
-  // Zone A slots
-  Slot(id: 'slot1', zoneId: 'zone1', name: 'A01', status: SlotStatus.available),
-  Slot(id: 'slot2', zoneId: 'zone1', name: 'A02', status: SlotStatus.available),
-  Slot(id: 'slot3', zoneId: 'zone1', name: 'A03', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 1)), reservedEnd: DateTime.now().add(Duration(hours: 3)), userId: 'user1'),
-  Slot(id: 'slot4', zoneId: 'zone1', name: 'A04', status: SlotStatus.occupied, reservedStart: DateTime.now().subtract(Duration(hours: 1)), reservedEnd: DateTime.now().add(Duration(hours: 1)), userId: 'user2'),
-  Slot(id: 'slot5', zoneId: 'zone1', name: 'A05', status: SlotStatus.available),
-  Slot(id: 'slot6', zoneId: 'zone1', name: 'A06', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 2)), reservedEnd: DateTime.now().add(Duration(hours: 4)), userId: 'user3'),
-  Slot(id: 'slot7', zoneId: 'zone1', name: 'A07', status: SlotStatus.available),
-  Slot(id: 'slot8', zoneId: 'zone1', name: 'A08', status: SlotStatus.occupied, reservedStart: DateTime.now().subtract(Duration(minutes: 30)), reservedEnd: DateTime.now().add(Duration(hours: 2)), userId: 'user4'),
-  Slot(id: 'slot9', zoneId: 'zone1', name: 'A09', status: SlotStatus.available),
-  Slot(id: 'slot10', zoneId: 'zone1', name: 'A10', status: SlotStatus.available),
+  ParkingUsageHistory({
+    required this.id,
+    required this.userId,
+    required this.slotId,
+    required this.usageStartTime,
+    required this.usageEndTime,
+    required this.reservationId,
+    required this.status,
+  });
 
-  // Zone B slots
-  Slot(id: 'slot11', zoneId: 'zone2', name: 'B01', status: SlotStatus.available),
-  Slot(id: 'slot12', zoneId: 'zone2', name: 'B02', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 1)), reservedEnd: DateTime.now().add(Duration(hours: 2)), userId: 'user5'),
-  Slot(id: 'slot13', zoneId: 'zone2', name: 'B03', status: SlotStatus.occupied, reservedStart: DateTime.now().subtract(Duration(hours: 2)), reservedEnd: DateTime.now().add(Duration(hours: 1)), userId: 'user6'),
-  Slot(id: 'slot14', zoneId: 'zone2', name: 'B04', status: SlotStatus.available),
-  Slot(id: 'slot15', zoneId: 'zone2', name: 'B05', status: SlotStatus.available),
-  Slot(id: 'slot16', zoneId: 'zone2', name: 'B06', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 3)), reservedEnd: DateTime.now().add(Duration(hours: 5)), userId: 'user7'),
-  Slot(id: 'slot17', zoneId: 'zone2', name: 'B07', status: SlotStatus.occupied, reservedStart: DateTime.now().subtract(Duration(minutes: 45)), reservedEnd: DateTime.now().add(Duration(hours: 3)), userId: 'user8'),
-  Slot(id: 'slot18', zoneId: 'zone2', name: 'B08', status: SlotStatus.available),
+  factory ParkingUsageHistory.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return ParkingUsageHistory(
+      id: doc.id,
+      userId: data['userId'] ?? '',
+      slotId: data['slotId'] ?? '',
+      usageStartTime: (data['usageStartTime'] as Timestamp).toDate(),
+      usageEndTime: (data['usageEndTime'] as Timestamp).toDate(),
+      reservationId: data['reservationId'] ?? '',
+      status: data['status'] ?? 'completed',
+    );
+  }
+}
 
-  // Zone C slots
-  Slot(id: 'slot19', zoneId: 'zone3', name: 'C01', status: SlotStatus.available),
-  Slot(id: 'slot20', zoneId: 'zone3', name: 'C02', status: SlotStatus.available),
-  Slot(id: 'slot21', zoneId: 'zone3', name: 'C03', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 2)), reservedEnd: DateTime.now().add(Duration(hours: 4)), userId: 'user9'),
-  Slot(id: 'slot22', zoneId: 'zone3', name: 'C04', status: SlotStatus.occupied, reservedStart: DateTime.now().subtract(Duration(hours: 1)), reservedEnd: DateTime.now().add(Duration(hours: 2)), userId: 'user10'),
-  Slot(id: 'slot23', zoneId: 'zone3', name: 'C05', status: SlotStatus.available),
-  Slot(id: 'slot24', zoneId: 'zone3', name: 'C06', status: SlotStatus.available),
-  Slot(id: 'slot25', zoneId: 'zone3', name: 'C07', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 1)), reservedEnd: DateTime.now().add(Duration(hours: 3)), userId: 'user11'),
-  Slot(id: 'slot26', zoneId: 'zone3', name: 'C08', status: SlotStatus.available),
-  Slot(id: 'slot27', zoneId: 'zone3', name: 'C09', status: SlotStatus.occupied, reservedStart: DateTime.now().subtract(Duration(minutes: 30)), reservedEnd: DateTime.now().add(Duration(hours: 1)), userId: 'user12'),
-  Slot(id: 'slot28', zoneId: 'zone3', name: 'C10', status: SlotStatus.available),
-  Slot(id: 'slot29', zoneId: 'zone3', name: 'C11', status: SlotStatus.available),
-  Slot(id: 'slot30', zoneId: 'zone3', name: 'C12', status: SlotStatus.reserved, reservedStart: DateTime.now().add(Duration(hours: 4)), reservedEnd: DateTime.now().add(Duration(hours: 6)), userId: 'user13'),
-];
 
-List<Booking> sampleBookings = [
-  Booking(
-    id: 'booking1',
-    userId: 'user1',
-    slotId: 'slot3',
-    startTime: DateTime.now().add(Duration(hours: 1)),
-    endTime: DateTime.now().add(Duration(hours: 3)),
-    createdAt: DateTime.now().subtract(Duration(hours: 2)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking2',
-    userId: 'user2',
-    slotId: 'slot4',
-    startTime: DateTime.now().subtract(Duration(hours: 1)),
-    endTime: DateTime.now().add(Duration(hours: 1)),
-    createdAt: DateTime.now().subtract(Duration(hours: 3)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking3',
-    userId: 'user3',
-    slotId: 'slot6',
-    startTime: DateTime.now().add(Duration(hours: 2)),
-    endTime: DateTime.now().add(Duration(hours: 4)),
-    createdAt: DateTime.now().subtract(Duration(hours: 1)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking4',
-    userId: 'user4',
-    slotId: 'slot8',
-    startTime: DateTime.now().subtract(Duration(minutes: 30)),
-    endTime: DateTime.now().add(Duration(hours: 2)),
-    createdAt: DateTime.now().subtract(Duration(hours: 4)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking5',
-    userId: 'user5',
-    slotId: 'slot12',
-    startTime: DateTime.now().add(Duration(hours: 1)),
-    endTime: DateTime.now().add(Duration(hours: 2)),
-    createdAt: DateTime.now().subtract(Duration(hours: 2)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking6',
-    userId: 'user6',
-    slotId: 'slot13',
-    startTime: DateTime.now().subtract(Duration(hours: 2)),
-    endTime: DateTime.now().add(Duration(hours: 1)),
-    createdAt: DateTime.now().subtract(Duration(hours: 5)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking7',
-    userId: 'user7',
-    slotId: 'slot16',
-    startTime: DateTime.now().add(Duration(hours: 3)),
-    endTime: DateTime.now().add(Duration(hours: 5)),
-    createdAt: DateTime.now().subtract(Duration(hours: 1)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking8',
-    userId: 'user8',
-    slotId: 'slot17',
-    startTime: DateTime.now().subtract(Duration(minutes: 45)),
-    endTime: DateTime.now().add(Duration(hours: 3)),
-    createdAt: DateTime.now().subtract(Duration(hours: 3)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking9',
-    userId: 'user9',
-    slotId: 'slot21',
-    startTime: DateTime.now().add(Duration(hours: 2)),
-    endTime: DateTime.now().add(Duration(hours: 4)),
-    createdAt: DateTime.now().subtract(Duration(hours: 2)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking10',
-    userId: 'user10',
-    slotId: 'slot22',
-    startTime: DateTime.now().subtract(Duration(hours: 1)),
-    endTime: DateTime.now().add(Duration(hours: 2)),
-    createdAt: DateTime.now().subtract(Duration(hours: 4)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking11',
-    userId: 'user11',
-    slotId: 'slot25',
-    startTime: DateTime.now().add(Duration(hours: 1)),
-    endTime: DateTime.now().add(Duration(hours: 3)),
-    createdAt: DateTime.now().subtract(Duration(hours: 1)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking12',
-    userId: 'user12',
-    slotId: 'slot27',
-    startTime: DateTime.now().subtract(Duration(minutes: 30)),
-    endTime: DateTime.now().add(Duration(hours: 1)),
-    createdAt: DateTime.now().subtract(Duration(hours: 2)),
-    isActive: true,
-  ),
-  Booking(
-    id: 'booking13',
-    userId: 'user13',
-    slotId: 'slot30',
-    startTime: DateTime.now().add(Duration(hours: 4)),
-    endTime: DateTime.now().add(Duration(hours: 6)),
-    createdAt: DateTime.now().subtract(Duration(hours: 3)),
-    isActive: true,
-  ),
-];
 
 // Helper functions
 Color getStatusColor(SlotStatus status) {

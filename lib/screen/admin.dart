@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth.dart';
+import '../services/parking_service.dart';
+import '../models/data.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -79,8 +81,79 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 }
 
-class AdminDashboard extends StatelessWidget {
+class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
+
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> {
+  int availableSlots = 0;
+  int reservedSlots = 0;
+  int occupiedSlots = 0;
+  int todaysBookings = 0;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      final parkingService = ParkingService();
+
+      // Get all slots
+      final allSlots = await parkingService.getSlots();
+      int totalAvailable = 0;
+      int totalReserved = 0;
+      int totalOccupied = 0;
+
+      for (final slot in allSlots) {
+        switch (slot.status) {
+          case SlotStatus.available:
+            totalAvailable++;
+            break;
+          case SlotStatus.reserved:
+            totalReserved++;
+            break;
+          case SlotStatus.occupied:
+            totalOccupied++;
+            break;
+        }
+      }
+
+      // Get today's bookings
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      final bookingsSnapshot = await FirebaseFirestore.instance
+          .collection('reservations')
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('createdAt', isLessThan: Timestamp.fromDate(endOfDay))
+          .get();
+
+      setState(() {
+        availableSlots = totalAvailable;
+        reservedSlots = totalReserved;
+        occupiedSlots = totalOccupied;
+        todaysBookings = bookingsSnapshot.docs.length;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading dashboard data: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,17 +168,19 @@ class AdminDashboard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              children: [
-                _buildDashboardCard('Available Slots', '120', Colors.green, Icons.check_circle),
-                _buildDashboardCard('Reserved Slots', '45', Colors.yellow, Icons.schedule),
-                _buildDashboardCard('Occupied Slots', '35', Colors.red, Icons.car_rental),
-                _buildDashboardCard('Today\'s Bookings', '80', Colors.blue, Icons.calendar_today),
-              ],
-            ),
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : GridView.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    children: [
+                      _buildDashboardCard('Available Slots', availableSlots.toString(), Colors.green, Icons.check_circle),
+                      _buildDashboardCard('Reserved Slots', reservedSlots.toString(), Colors.yellow, Icons.schedule),
+                      _buildDashboardCard('Occupied Slots', occupiedSlots.toString(), Colors.red, Icons.car_rental),
+                      _buildDashboardCard('Today\'s Bookings', todaysBookings.toString(), Colors.blue, Icons.calendar_today),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -159,18 +234,7 @@ class ZoneSlotManagement extends StatelessWidget {
             itemCount: zones.length,
             itemBuilder: (context, index) {
               final zone = zones[index];
-              return ListTile(
-                title: Text(zone['name']),
-                subtitle: Text('Total slots: ${zone['totalSlots']}, Available: ${zone['availableSlots']}'),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SlotManagement(zoneId: zone.id, zoneName: zone['name']),
-                    ),
-                  );
-                },
-              );
+              return ZoneListItem(zone: zone);
             },
           );
         },
@@ -181,6 +245,52 @@ class ZoneSlotManagement extends StatelessWidget {
         },
         child: const Icon(Icons.add),
       ),
+    );
+  }
+}
+
+class ZoneListItem extends StatelessWidget {
+  final DocumentSnapshot zone;
+
+  const ZoneListItem({super.key, required this.zone});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('parking_slots')
+          .where('zoneId', isEqualTo: zone.id)
+          .get(),
+      builder: (context, slotsSnapshot) {
+        if (slotsSnapshot.connectionState == ConnectionState.waiting) {
+          return const ListTile(
+            title: Text('Loading...'),
+          );
+        }
+        if (slotsSnapshot.hasError) {
+          return ListTile(
+            title: Text(zone['name']),
+            subtitle: const Text('Error loading slot count'),
+          );
+        }
+
+        final slots = slotsSnapshot.data!.docs;
+        final totalSlots = slots.length;
+        final availableSlots = slots.where((slot) => slot['status'] == 'available').length;
+
+        return ListTile(
+          title: Text(zone['name']),
+          subtitle: Text('Total slots: $totalSlots, Available: $availableSlots'),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SlotManagement(zoneId: zone.id, zoneName: zone['name']),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -198,7 +308,10 @@ class SlotManagement extends StatelessWidget {
         title: Text('Slots in $zoneName'),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('zones').doc(zoneId).collection('slots').snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('parking_slots')
+            .where('zoneId', isEqualTo: zoneId)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('Error loading slots'));
@@ -252,7 +365,7 @@ class SlotManagement extends StatelessWidget {
       color: color,
       child: Center(
         child: Text(
-          slot['id'],
+          slot['slotName'],
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
@@ -284,16 +397,80 @@ class ReservationManagement extends StatelessWidget {
             itemCount: reservations.length,
             itemBuilder: (context, index) {
               final reservation = reservations[index];
-              return ListTile(
-                title: Text('User: ${reservation['userId']}'),
-                subtitle: Text('Slot: ${reservation['slotId']}, Status: ${reservation['status']}'),
-                trailing: Text('${reservation['startTime']} - ${reservation['endTime']}'),
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'User: ${reservation['userId'] ?? 'Unknown'}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(reservation['status']),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              reservation['status'] ?? 'Unknown',
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Slot: ${reservation['slotId'] ?? 'Unknown'}'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Start: ${_formatTimestamp(reservation['reservationStartTime'])}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      Text(
+                        'End: ${_formatTimestamp(reservation['reservationEndTime'])}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           );
         },
       ),
     );
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return Colors.green;
+      case 'completed':
+        return Colors.blue;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown';
+    try {
+      if (timestamp is Timestamp) {
+        final dateTime = timestamp.toDate();
+        return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+      }
+      return timestamp.toString();
+    } catch (e) {
+      return 'Invalid date';
+    }
   }
 }
 
@@ -322,9 +499,9 @@ class UsageHistory extends StatelessWidget {
             itemBuilder: (context, index) {
               final record = history[index];
               return ListTile(
-                title: Text('User: ${record['userId']}'),
-                subtitle: Text('Slot: ${record['slotId']}'),
-                trailing: Text('${record['checkIn']} - ${record['checkOut']}'),
+                title: Text('User: ${record['userId'] ?? 'Unknown'}'),
+                subtitle: Text('Slot: ${record['slotId'] ?? 'Unknown'}'),
+                trailing: Text('${record['checkIn'] ?? 'Unknown'} - ${record['checkOut'] ?? 'Unknown'}'),
               );
             },
           );
