@@ -43,4 +43,18 @@ class UserService {
     final data = doc.data();
     return (data?['role'] as String?) == 'admin';
   }
+
+  Future<void> updateParkingLocation(String uid, String parkingLocation) async {
+    await _db.collection('users').doc(uid).set(
+      {'parkingLocation': parkingLocation},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<String?> getParkingLocation(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+    final data = doc.data();
+    return data?['parkingLocation'] as String?;
+  }
+
 }
