@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:parking_slot/screen/login.dart';
+import 'package:parking_slot/screen/user/login.dart';
 import 'package:parking_slot/services/user.dart';
-import 'package:parking_slot/screen/dashboard.dart';
+import 'package:parking_slot/screen/user/dashboard.dart';
 
 class WaitingActiveScreen extends StatelessWidget {
   const WaitingActiveScreen({super.key});

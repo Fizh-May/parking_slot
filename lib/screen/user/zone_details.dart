@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/data.dart';
-import '../services/parking_service.dart';
+import '../../models/data.dart';
+import '../../services/parking_service.dart';
 import 'slot_detail.dart';
 
 class ZoneDetailsScreen extends StatelessWidget {

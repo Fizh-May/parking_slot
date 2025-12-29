@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:parking_slot/screen/login.dart';
+import 'package:parking_slot/screen/user/login.dart';
 import 'firebase_options.dart';
-import 'package:parking_slot/screen/test.dart';
+import 'package:parking_slot/screen/user/test.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../models/data.dart';
-import '../services/parking_service.dart';
+import '../../models/data.dart';
+import '../../services/parking_service.dart';
 import 'zone_details.dart';
-import '../services/auth.dart';
+import '../../services/auth.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});

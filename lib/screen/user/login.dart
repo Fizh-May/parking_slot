@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:parking_slot/screen/dashboard.dart';
-import 'package:parking_slot/screen/waiting_active.dart';
-import 'package:parking_slot/screen/admin.dart';
+import 'package:parking_slot/screen/user/dashboard.dart';
+import 'package:parking_slot/screen/user/waiting_active.dart';
+import 'package:parking_slot/screen/admin/admin.dart';
 import 'package:parking_slot/services/auth.dart';
 import 'package:parking_slot/services/user.dart';
 

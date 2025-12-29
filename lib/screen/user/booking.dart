@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/data.dart';
-import '../services/parking_service.dart';
+import '../../models/data.dart';
+import '../../services/parking_service.dart';
 import 'confirmation.dart';
 
 class BookingScreen extends StatefulWidget {
