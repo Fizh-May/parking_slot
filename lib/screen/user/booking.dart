@@ -5,6 +5,7 @@ import '../../models/data.dart';
 import '../../services/parking_service.dart';
 import 'confirmation.dart';
 
+
 class BookingScreen extends StatefulWidget {
   final Slot slot;
 
@@ -107,7 +108,6 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 24),
 
                   // Start Date & Time
@@ -378,7 +378,7 @@ class _BookingScreenState extends State<BookingScreen> {
         throw Exception('User not authenticated');
       }
 
-      // Create reservation (ParkingService handles conflict checking)
+      // Check for booking conflicts and create reservation
       final reservationId = await _parkingService.createReservation(
         userId: user.uid,
         slotId: widget.slot.id,
@@ -387,6 +387,9 @@ class _BookingScreenState extends State<BookingScreen> {
       );
 
       if (reservationId != null) {
+        // Update the slot status to reserved
+        await _parkingService.updateSlotStatus(widget.slot.id, 'reserved'); // Slot status becomes reserved
+
         // Navigate to confirmation screen
         Navigator.pushReplacement(
           context,

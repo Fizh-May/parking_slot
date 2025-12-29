@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 class UsageHistory extends StatelessWidget {
   const UsageHistory({super.key});
 
@@ -9,7 +8,7 @@ class UsageHistory extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Usage History',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('usage_history').snapshots(),
@@ -28,7 +27,9 @@ class UsageHistory extends StatelessWidget {
               return ListTile(
                 title: Text('User: ${record['userId'] ?? 'Unknown'}'),
                 subtitle: Text('Slot: ${record['slotId'] ?? 'Unknown'}'),
-                trailing: Text('${record['checkIn'] ?? 'Unknown'} - ${record['checkOut'] ?? 'Unknown'}'),
+                trailing: Text(
+                  '${(record['usageStartTime'] as Timestamp).toDate()} - ${(record['usageEndTime'] as Timestamp).toDate()}',
+                ),
               );
             },
           );

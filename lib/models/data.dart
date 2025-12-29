@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum SlotStatus { available, reserved, occupied }
-
 class Zone {
   final String id;
   final String name;
@@ -51,16 +50,15 @@ class Zone {
     };
   }
 }
-
 class Slot {
   final String id;
   final String zoneId;
   final String slotLocation;
   final String slotName;
-  final bool isAvailable;
-  final bool isOccupied;
-  final bool isReserved;
-  final SlotStatus status;
+  bool isAvailable;
+  bool isOccupied;
+  bool isReserved;
+  SlotStatus status;
   final DateTime? reservedStart;
   final DateTime? reservedEnd;
   final String? userId;
@@ -86,7 +84,7 @@ class Slot {
   factory Slot.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Slot(
-      id: data['id'] ?? doc.id,
+      id: doc.id,
       zoneId: data['zoneId'] ?? '',
       slotLocation: data['slotLocation'] ?? '',
       slotName: data['slotName'] ?? '',
@@ -104,7 +102,6 @@ class Slot {
 
   Map<String, dynamic> toFirestore() {
     return {
-      'id': id,
       'zoneId': zoneId,
       'slotLocation': slotLocation,
       'slotName': slotName,
@@ -132,105 +129,6 @@ class Slot {
     }
   }
 }
-
-class Reservation {
-  final String id;
-  final String userId;
-  final String slotId;
-  final DateTime reservationStartTime;
-  final DateTime reservationEndTime;
-  final String status;
-  final bool extendedDuration;
-  final DateTime createdAt;
-  final bool isActive;
-  final DateTime? checkInTime;
-  final DateTime? checkOutTime;
-  final double? totalCost;
-
-  Reservation({
-    required this.id,
-    required this.userId,
-    required this.slotId,
-    required this.reservationStartTime,
-    required this.reservationEndTime,
-    required this.status,
-    required this.extendedDuration,
-    required this.createdAt,
-    required this.isActive,
-    this.checkInTime,
-    this.checkOutTime,
-    this.totalCost,
-  });
-
-  factory Reservation.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return Reservation(
-      id: data['id'] ?? doc.id,
-      userId: data['userId'] ?? '',
-      slotId: data['slotId'] ?? '',
-      reservationStartTime: (data['reservationStartTime'] as Timestamp).toDate(),
-      reservationEndTime: (data['reservationEndTime'] as Timestamp).toDate(),
-      status: data['status'] ?? 'active',
-      extendedDuration: data['extendedDuration'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isActive: data['isActive'] ?? true,
-      checkInTime: (data['checkInTime'] as Timestamp?)?.toDate(),
-      checkOutTime: (data['checkOutTime'] as Timestamp?)?.toDate(),
-      totalCost: data['totalCost']?.toDouble(),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'id': id,
-      'userId': userId,
-      'slotId': slotId,
-      'reservationStartTime': Timestamp.fromDate(reservationStartTime),
-      'reservationEndTime': Timestamp.fromDate(reservationEndTime),
-      'status': status,
-      'extendedDuration': extendedDuration,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'isActive': isActive,
-      'checkInTime': checkInTime != null ? Timestamp.fromDate(checkInTime!) : null,
-      'checkOutTime': checkOutTime != null ? Timestamp.fromDate(checkOutTime!) : null,
-      'totalCost': totalCost,
-    };
-  }
-}
-
-class ParkingUsageHistory {
-  final String id;
-  final String userId;
-  final String slotId;
-  final DateTime usageStartTime;
-  final DateTime usageEndTime;
-  final String reservationId;
-  final String status;
-
-  ParkingUsageHistory({
-    required this.id,
-    required this.userId,
-    required this.slotId,
-    required this.usageStartTime,
-    required this.usageEndTime,
-    required this.reservationId,
-    required this.status,
-  });
-
-  factory ParkingUsageHistory.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return ParkingUsageHistory(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      slotId: data['slotId'] ?? '',
-      usageStartTime: (data['usageStartTime'] as Timestamp).toDate(),
-      usageEndTime: (data['usageEndTime'] as Timestamp).toDate(),
-      reservationId: data['reservationId'] ?? '',
-      status: data['status'] ?? 'completed',
-    );
-  }
-}
-
 
 
 // Helper functions

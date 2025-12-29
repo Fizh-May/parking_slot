@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/data.dart';
 import '../../services/parking_service.dart';
 import 'zone_details.dart';
@@ -13,70 +15,16 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final ParkingService _parkingService = ParkingService();
-  List<Zone> _zones = [];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadZones();
-  }
-
-  Future<void> _loadZones() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final zones = await _parkingService.getZones();
-
-      setState(() {
-        _zones = zones;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Failed to load zones: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<Map<String, int>> _getZoneStats(String zoneId) async {
-    try {
-      final slots = await _parkingService.getSlotsByZone(zoneId);
-      int available = 0;
-      int reserved = 0;
-      int occupied = 0;
-
-      for (var slot in slots) {
-        switch (slot.status) {
-          case SlotStatus.available:
-            available++;
-            break;
-          case SlotStatus.reserved:
-            reserved++;
-            break;
-          case SlotStatus.occupied:
-            occupied++;
-            break;
-        }
-      }
-
-      return {
-        'available': available,
-        'reserved': reserved,
-        'occupied': occupied,
-      };
-    } catch (e) {
-      return {'available': 0, 'reserved': 0, 'occupied': 0};
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Scaffold(
+        body: Center(child: Text('Please log in to view your bookings')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Parking Zones", style: TextStyle(fontSize: 25, color: Colors.white)),
@@ -91,124 +39,155 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 64, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(_error!, textAlign: TextAlign.center),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadZones,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadZones,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _zones.length,
-                    itemBuilder: (context, index) {
-                      final zone = _zones[index];
-                      return FutureBuilder<Map<String, int>>(
-                        future: _getZoneStats(zone.id),
-                        builder: (context, snapshot) {
-                          final stats = snapshot.data ?? {'available': 0, 'reserved': 0, 'occupied': 0};
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('zones').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text('Error loading zones'));
+          }
 
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.local_parking,
-                                color: Colors.blue,
-                                size: 40,
-                              ),
-                              title: Text(
-                                zone.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Total Slots: ${zone.totalSlots}'),
-                                  Wrap(
-                                    spacing: 16,
-                                    runSpacing: 4,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: const BoxDecoration(
-                                              color: Colors.green,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text('Available: ${stats['available']}'),
-                                        ],
-                                      ),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: const BoxDecoration(
-                                              color: Colors.orange,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text('Reserved: ${stats['reserved']}'),
-                                        ],
-                                      ),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: const BoxDecoration(
-                                              color: Colors.red,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text('Occupied: ${stats['occupied']}'),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              trailing: const Icon(Icons.arrow_forward_ios),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ZoneDetailsScreen(zone: zone),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      );
-                    },
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final zones = snapshot.data!.docs.map((doc) {
+            return Zone.fromFirestore(doc);
+          }).toList();
+
+          if (zones.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.local_parking, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'No parking zones available',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
                   ),
-                ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _loadZones,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: zones.length,
+              itemBuilder: (context, index) {
+                final zone = zones[index];
+                return _buildZoneCard(zone);
+              },
+            ),
+          );
+        },
+      ),
     );
+  }
+
+  // This method is used for each Zone to load the stats and display
+  Widget _buildZoneCard(Zone zone) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('parking_slots')
+          .where('zoneId', isEqualTo: zone.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Error loading slots'));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final slots = snapshot.data!.docs.map((doc) {
+          return Slot.fromFirestore(doc);
+        }).toList();
+
+        int available = 0, reserved = 0, occupied = 0;
+
+        for (var slot in slots) {
+          switch (slot.status) {
+            case SlotStatus.available:
+              available++;
+              break;
+            case SlotStatus.reserved:
+              reserved++;
+              break;
+            case SlotStatus.occupied:
+              occupied++;
+              break;
+          }
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: ListTile(
+            leading: const Icon(
+              Icons.local_parking,
+              color: Colors.blue,
+              size: 40,
+            ),
+            title: Text(
+              zone.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Total Slots: ${zone.totalSlots}'),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 4,
+                  children: [
+                    _buildStatusRow(Colors.green, 'Available: $available'),
+                    _buildStatusRow(Colors.orange, 'Reserved: $reserved'),
+                    _buildStatusRow(Colors.red, 'Occupied: $occupied'),
+                  ],
+                ),
+              ],
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ZoneDetailsScreen(zone: zone),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper method to create status rows (Available, Reserved, Occupied)
+  Widget _buildStatusRow(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label),
+      ],
+    );
+  }
+
+  // _loadZones method is no longer needed because the StreamBuilder listens to changes
+  Future<void> _loadZones() async {
+    // No need to load zones manually, StreamBuilder does this
   }
 }

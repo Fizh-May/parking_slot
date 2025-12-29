@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/data.dart';
-import '../../services/parking.dart';
 
 class ActiveBookingsScreen extends StatefulWidget {
   const ActiveBookingsScreen({super.key});
@@ -85,11 +84,10 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
     final endTime = (booking['reservationEndTime'] as Timestamp).toDate();
     final status = booking['status'] as String;
 
-    // For now, create placeholder slot and zone info
-    // In a real app, you would fetch this data from Firestore
+    // Fetch Slot details
     final slot = Slot(
       id: slotId,
-      zoneId: 'unknown',
+      zoneId: 'unknown',  // Placeholder, should be fetched from Firestore
       slotLocation: 'Unknown',
       slotName: slotId,
       isAvailable: true,
@@ -99,141 +97,154 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
-    final zone = Zone(
-      id: 'unknown',
-      name: 'Unknown Zone',
-      totalSlots: 0,
-      availableSlots: 0,
-      reservedSlots: 0,
-      occupiedSlots: 0,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
 
-    final now = DateTime.now();
-    final isActive = now.isAfter(startTime) && now.isBefore(endTime);
-    final timeRemaining = endTime.difference(now);
+    // Fetch Zone details based on slot's zoneId
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('zones')
+          .doc(slot.zoneId) // Fetch the zone based on zoneId in the slot
+          .get(),
+      builder: (context, zoneSnapshot) {
+        if (zoneSnapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+        if (zoneSnapshot.hasError) {
+          return Text('Error: ${zoneSnapshot.error}');
+        }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        if (!zoneSnapshot.hasData || !zoneSnapshot.data!.exists) {
+          return const Text('Zone not found');
+        }
+
+        final zoneData = zoneSnapshot.data!;
+        final zone = Zone.fromFirestore(zoneData);
+
+        final now = DateTime.now();
+        final isActive = now.isAfter(startTime) && now.isBefore(endTime);
+        final timeRemaining = endTime.difference(now);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.local_parking,
-                  color: status == 'occupied' ? Colors.red : Colors.blue,
-                  size: 32,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Slot ${slot.slotName}',
+                Row(
+                  children: [
+                    Icon(
+                      Icons.local_parking,
+                      color: status == 'occupied' ? Colors.red : Colors.blue,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Slot ${slot.slotName}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            zone.name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: status == 'occupied' ? Colors.red : Colors.green,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        status == 'occupied' ? 'In Use' : 'Reserved',
                         style: const TextStyle(
-                          fontSize: 18,
+                          color: Colors.white,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Start: ${_formatDateTime(startTime)}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_filled, color: Colors.red, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'End: ${_formatDateTime(endTime)}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (isActive && timeRemaining.isNegative == false)
+                  Row(
+                    children: [
+                      const Icon(Icons.timer, color: Colors.orange, size: 20),
+                      const SizedBox(width: 8),
                       Text(
-                        zone.name,
+                        'Time Remaining: ${_formatDuration(timeRemaining)}',
                         style: const TextStyle(
                           fontSize: 14,
-                          color: Colors.grey,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
                         ),
                       ),
                     ],
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: status == 'occupied' ? Colors.red : Colors.green,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status == 'occupied' ? 'In Use' : 'Reserved',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _extendBooking(booking),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Extend Time'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _cancelBooking(booking),
+                        icon: const Icon(Icons.cancel),
+                        label: const Text('Cancel'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.access_time, color: Colors.blue, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Start: ${_formatDateTime(startTime)}',
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.access_time_filled, color: Colors.red, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'End: ${_formatDateTime(endTime)}',
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (isActive && timeRemaining.isNegative == false)
-              Row(
-                children: [
-                  const Icon(Icons.timer, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Time Remaining: ${_formatDuration(timeRemaining)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _extendBooking(booking),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Extend Time'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _cancelBooking(booking),
-                    icon: const Icon(Icons.cancel),
-                    label: const Text('Cancel'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -319,7 +330,7 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
   }
 
   Future<void> _cancelBooking(DocumentSnapshot booking) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(  // Confirm cancellation
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Booking'),

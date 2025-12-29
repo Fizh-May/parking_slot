@@ -121,7 +121,7 @@ class SlotManagement extends StatelessWidget {
             itemCount: slots.length,
             itemBuilder: (context, index) {
               final slot = slots[index];
-              return _buildSlotCard(slot);
+              return _buildSlotCard(context, slot);
             },
           );
         },
@@ -135,7 +135,7 @@ class SlotManagement extends StatelessWidget {
     );
   }
 
-  Widget _buildSlotCard(DocumentSnapshot slot) {
+  Widget _buildSlotCard(BuildContext context, DocumentSnapshot slot) {
     Color color;
     String status = slot['status'];
     switch (status) {
@@ -152,14 +152,71 @@ class SlotManagement extends StatelessWidget {
         color = Colors.grey;
     }
 
-    return Card(
-      color: color,
-      child: Center(
-        child: Text(
-          slot['slotName'],
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+    return GestureDetector(
+      onTap: () async {
+        // Show a dialog for the user to select a new status
+        String newStatus = await _showStatusDialog(context, status);
+        if (newStatus.isNotEmpty) {
+          await _updateSlotStatus(slot.id, newStatus);
+        }
+      },
+      child: Card(
+        color: color,
+        child: Center(
+          child: Text(
+            slot['slotName'],
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
         ),
       ),
     );
+  }
+
+  // Show a dialog for selecting status
+  Future<String> _showStatusDialog(BuildContext context, String currentStatus) async {
+    String newStatus = currentStatus;
+
+    // Define status options
+    List<String> statuses = ['available', 'reserved', 'occupied'];
+
+    await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Slot Status'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: statuses.map((status) {
+              return RadioListTile<String>(
+                title: Text(status),
+                value: status,
+                groupValue: newStatus,
+                onChanged: (value) {
+                  newStatus = value!;
+                  Navigator.of(context).pop();
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+
+    return newStatus;
+  }
+
+  // Update slot status in Firestore
+  Future<void> _updateSlotStatus(String slotId, String newStatus) async {
+    try {
+      final slotRef = FirebaseFirestore.instance.collection('parking_slots').doc(slotId);
+      await slotRef.update({
+        'status': newStatus,
+        'isReserved': newStatus == 'reserved',
+        'isOccupied': newStatus == 'occupied',
+        'isAvailable': newStatus == 'available',
+      });
+    } catch (e) {
+      print('Error updating slot status: $e');
+    }
   }
 }
