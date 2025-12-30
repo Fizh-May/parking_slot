@@ -9,7 +9,7 @@ class ZoneSlotManagement extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Parking Zones Management',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('zones').snapshots(),
@@ -21,12 +21,33 @@ class ZoneSlotManagement extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           final zones = snapshot.data!.docs;
-          return ListView.builder(
-            itemCount: zones.length,
-            itemBuilder: (context, index) {
-              final zone = zones[index];
-              return ZoneListItem(zone: zone);
-            },
+
+          if (zones.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.local_parking, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'No parking zones available',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _loadZones,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: zones.length,
+              itemBuilder: (context, index) {
+                final zone = zones[index];
+                return ZoneListItem(zone: zone);
+              },
+            ),
           );
         },
       ),
@@ -38,6 +59,11 @@ class ZoneSlotManagement extends StatelessWidget {
       ),
     );
   }
+
+  // _loadZones method for refresh functionality
+  Future<void> _loadZones() async {
+    // No need to load zones manually, StreamBuilder does this
+  }
 }
 
 class ZoneListItem extends StatelessWidget {
@@ -47,41 +73,107 @@ class ZoneListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
           .collection('parking_slots')
           .where('zoneId', isEqualTo: zone.id)
-          .get(),
+          .snapshots(),
       builder: (context, slotsSnapshot) {
         if (slotsSnapshot.connectionState == ConnectionState.waiting) {
-          return const ListTile(
-            title: Text('Loading...'),
+          return const Card(
+            margin: EdgeInsets.only(bottom: 16),
+            child: ListTile(
+              leading: SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(),
+              ),
+              title: Text('Loading...'),
+            ),
           );
         }
         if (slotsSnapshot.hasError) {
-          return ListTile(
-            title: Text(zone['name']),
-            subtitle: const Text('Error loading slot count'),
+          return Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: ListTile(
+              leading: const Icon(
+                Icons.error,
+                color: Colors.red,
+                size: 40,
+              ),
+              title: Text(zone['name']),
+              subtitle: const Text('Error loading slot count'),
+            ),
           );
         }
 
         final slots = slotsSnapshot.data!.docs;
         final totalSlots = slots.length;
         final availableSlots = slots.where((slot) => slot['status'] == 'available').length;
+        final reservedSlots = slots.where((slot) => slot['status'] == 'reserved').length;
+        final occupiedSlots = slots.where((slot) => slot['status'] == 'occupied').length;
 
-        return ListTile(
-          title: Text(zone['name']),
-          subtitle: Text('Total slots: $totalSlots, Available: $availableSlots'),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SlotManagement(zoneId: zone.id, zoneName: zone['name']),
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: ListTile(
+            leading: const Icon(
+              Icons.local_parking,
+              color: Colors.blue,
+              size: 40,
+            ),
+            title: Text(
+              zone['name'],
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
-            );
-          },
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Total Slots: $totalSlots'),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 4,
+                  children: [
+                    _buildStatusRow(Colors.green, 'Available: $availableSlots'),
+                    _buildStatusRow(Colors.orange, 'Reserved: $reservedSlots'),
+                    _buildStatusRow(Colors.red, 'Occupied: $occupiedSlots'),
+                  ],
+                ),
+              ],
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SlotManagement(zoneId: zone.id, zoneName: zone['name']),
+                ),
+              );
+            },
+          ),
         );
       },
+    );
+  }
+
+  // Helper method to create status rows (Available, Reserved, Occupied)
+  Widget _buildStatusRow(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label),
+      ],
     );
   }
 }
@@ -96,7 +188,8 @@ class SlotManagement extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Slots in $zoneName'),
+        title: Text('Slots in $zoneName', style: const TextStyle(color: Colors.white)),
+        backgroundColor: Colors.blue,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance

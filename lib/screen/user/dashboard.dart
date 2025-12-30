@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/data.dart';
 import '../../services/parking_service.dart';
 import 'zone_details.dart';
+import 'active_bookings.dart';
 import '../../services/auth.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -15,6 +17,32 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final ParkingService _parkingService = ParkingService();
+  Timer? _expiredCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for expired reservations when the dashboard loads
+    _parkingService.checkAndUpdateExpiredReservations();
+    // Start periodic check for expired reservations
+    _startExpiredCheckTimer();
+  }
+
+  @override
+  void dispose() {
+    // Cancel the timer when the widget is disposed
+    _expiredCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startExpiredCheckTimer() {
+    // Check every 3 seconds for expired reservations
+    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (mounted) {
+        _parkingService.checkAndUpdateExpiredReservations();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +58,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text("Parking Zones", style: TextStyle(fontSize: 25, color: Colors.white)),
         backgroundColor: Colors.blue,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.book_online, color: Colors.white),
+            tooltip: 'My Bookings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ActiveBookingsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {

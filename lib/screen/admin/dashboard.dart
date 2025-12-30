@@ -58,18 +58,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
           .where('createdAt', isLessThan: Timestamp.fromDate(endOfDay))
           .get();
 
-      setState(() {
-        availableSlots = totalAvailable;
-        reservedSlots = totalReserved;
-        occupiedSlots = totalOccupied;
-        todaysBookings = bookingsSnapshot.docs.length;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
       if (mounted) {
+        setState(() {
+          availableSlots = totalAvailable;
+          reservedSlots = totalReserved;
+          occupiedSlots = totalOccupied;
+          todaysBookings = bookingsSnapshot.docs.length;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading dashboard data: $e')),
         );

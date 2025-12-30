@@ -150,10 +150,72 @@ class ParkingService {
         'status': status,
         'isReserved': status == 'reserved',  // You can also use boolean fields for specific statuses
         'isOccupied': status == 'occupied',  // Update occupied status as well if needed
+        'isAvailable': status == 'available',
+        'updatedAt': Timestamp.now(),
       });
     } catch (e) {
       print('Error updating slot status: $e');
       throw Exception('Error updating slot status');
     }
+  }
+
+  // Check and update expired reservations
+  Future<void> checkAndUpdateExpiredReservations() async {
+    try {
+      final now = Timestamp.now();
+
+      // Query all active reservations first (single field query)
+      final activeReservations = await _db.collection('reservations')
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      // Filter expired reservations in memory
+      final expiredReservations = activeReservations.docs.where((doc) {
+        final endTime = doc['endTime'] as Timestamp;
+        return endTime.compareTo(now) < 0; // endTime < now
+      }).toList();
+
+      for (var doc in expiredReservations) {
+        final reservationId = doc.id;
+        final slotId = doc['slotId'] as String;
+
+        // Update reservation status to completed
+        await _db.collection('reservations').doc(reservationId).update({
+          'status': 'completed',
+        });
+
+        // Update slot status to available
+        await updateSlotStatus(slotId, 'available');
+
+        // Add to usage history
+        await _db.collection('usage_history').add({
+          'userId': doc['userId'],
+          'slotId': slotId,
+          'usageStartTime': doc['startTime'],
+          'usageEndTime': doc['endTime'],
+          'status': 'completed',
+          'timestamp': Timestamp.now(),
+        });
+      }
+    } catch (e) {
+      print('Error checking expired reservations: $e');
+    }
+  }
+
+  // Get real-time slots stream
+  Stream<List<Slot>> getSlotsStream() {
+    return _db.collection('parking_slots').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => Slot.fromFirestore(doc)).toList();
+    });
+  }
+
+  // Get slots by zone stream
+  Stream<List<Slot>> getSlotsByZoneStream(String zoneId) {
+    return _db.collection('parking_slots')
+        .where('zoneId', isEqualTo: zoneId)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Slot.fromFirestore(doc)).toList();
+    });
   }
 }

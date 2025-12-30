@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/data.dart';
+import '../../services/parking_service.dart';
 
 class ActiveBookingsScreen extends StatefulWidget {
   const ActiveBookingsScreen({super.key});
@@ -11,6 +13,31 @@ class ActiveBookingsScreen extends StatefulWidget {
 }
 
 class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
+  final ParkingService _parkingService = ParkingService();
+  Timer? _expiredCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for expired reservations periodically
+    _startExpiredCheckTimer();
+  }
+
+  @override
+  void dispose() {
+    // Cancel the timer when the widget is disposed
+    _expiredCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startExpiredCheckTimer() {
+    // Check every minute for expired reservations
+    _expiredCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) {
+        _parkingService.checkAndUpdateExpiredReservations();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +58,6 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
             .collection('reservations')
             .where('userId', isEqualTo: user.uid)
             .where('status', whereIn: ['active', 'occupied'])
-            .orderBy('reservationStartTime', descending: false)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -80,176 +106,185 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
 
   Widget _buildBookingCard(DocumentSnapshot booking) {
     final slotId = booking['slotId'] as String;
-    final startTime = (booking['reservationStartTime'] as Timestamp).toDate();
-    final endTime = (booking['reservationEndTime'] as Timestamp).toDate();
+    final startTime = (booking['startTime'] as Timestamp).toDate();
+    final endTime = (booking['endTime'] as Timestamp).toDate();
     final status = booking['status'] as String;
 
-    // Fetch Slot details
-    final slot = Slot(
-      id: slotId,
-      zoneId: 'unknown',  // Placeholder, should be fetched from Firestore
-      slotLocation: 'Unknown',
-      slotName: slotId,
-      isAvailable: true,
-      isOccupied: false,
-      isReserved: false,
-      status: SlotStatus.available,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    // Fetch Zone details based on slot's zoneId
+    // Fetch Slot details first
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
-          .collection('zones')
-          .doc(slot.zoneId) // Fetch the zone based on zoneId in the slot
+          .collection('parking_slots')
+          .doc(slotId)
           .get(),
-      builder: (context, zoneSnapshot) {
-        if (zoneSnapshot.connectionState == ConnectionState.waiting) {
+      builder: (context, slotSnapshot) {
+        if (slotSnapshot.connectionState == ConnectionState.waiting) {
           return const CircularProgressIndicator();
         }
-        if (zoneSnapshot.hasError) {
-          return Text('Error: ${zoneSnapshot.error}');
+        if (slotSnapshot.hasError) {
+          return Text('Error loading slot: ${slotSnapshot.error}');
         }
 
-        if (!zoneSnapshot.hasData || !zoneSnapshot.data!.exists) {
-          return const Text('Zone not found');
+        if (!slotSnapshot.hasData || !slotSnapshot.data!.exists) {
+          return const Text('Slot not found');
         }
 
-        final zoneData = zoneSnapshot.data!;
-        final zone = Zone.fromFirestore(zoneData);
+        final slotData = slotSnapshot.data!;
+        final slot = Slot.fromFirestore(slotData);
 
-        final now = DateTime.now();
-        final isActive = now.isAfter(startTime) && now.isBefore(endTime);
-        final timeRemaining = endTime.difference(now);
+        // Now fetch Zone details based on slot's zoneId
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('zones')
+              .doc(slot.zoneId)
+              .get(),
+          builder: (context, zoneSnapshot) {
+            if (zoneSnapshot.connectionState == ConnectionState.waiting) {
+              return const CircularProgressIndicator();
+            }
+            if (zoneSnapshot.hasError) {
+              return Text('Error loading zone: ${zoneSnapshot.error}');
+            }
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            if (!zoneSnapshot.hasData || !zoneSnapshot.data!.exists) {
+              return const Text('Zone not found');
+            }
+
+            final zoneData = zoneSnapshot.data!;
+            final zone = Zone.fromFirestore(zoneData);
+
+            final now = DateTime.now();
+            final isActive = now.isAfter(startTime) && now.isBefore(endTime);
+            final timeRemaining = endTime.difference(now);
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.local_parking,
-                      color: status == 'occupied' ? Colors.red : Colors.blue,
-                      size: 32,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Slot ${slot.slotName}',
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.local_parking,
+                          color: status == 'occupied' ? Colors.red : Colors.blue,
+                          size: 32,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Slot ${slot.slotName}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                zone.name,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: status == 'occupied' ? Colors.red : Colors.green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            status == 'occupied' ? 'In Use' : 'Reserved',
                             style: const TextStyle(
-                              fontSize: 18,
+                              color: Colors.white,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Start: ${_formatDateTime(startTime)}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time_filled, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'End: ${_formatDateTime(endTime)}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (isActive && timeRemaining.isNegative == false)
+                      Row(
+                        children: [
+                          const Icon(Icons.timer, color: Colors.orange, size: 20),
+                          const SizedBox(width: 8),
                           Text(
-                            zone.name,
+                            'Time Remaining: ${_formatDuration(timeRemaining)}',
                             style: const TextStyle(
                               fontSize: 14,
-                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: status == 'occupied' ? Colors.red : Colors.green,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        status == 'occupied' ? 'In Use' : 'Reserved',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _extendBooking(booking),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Extend Time'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _cancelBooking(booking),
+                            icon: const Icon(Icons.cancel),
+                            label: const Text('Cancel'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time, color: Colors.blue, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Start: ${_formatDateTime(startTime)}',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time_filled, color: Colors.red, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'End: ${_formatDateTime(endTime)}',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (isActive && timeRemaining.isNegative == false)
-                  Row(
-                    children: [
-                      const Icon(Icons.timer, color: Colors.orange, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Time Remaining: ${_formatDuration(timeRemaining)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _extendBooking(booking),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Extend Time'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _cancelBooking(booking),
-                        icon: const Icon(Icons.cancel),
-                        label: const Text('Cancel'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
   Future<void> _extendBooking(DocumentSnapshot booking) async {
-    final currentEndTime = (booking['reservationEndTime'] as Timestamp).toDate();
+    final currentEndTime = (booking['endTime'] as Timestamp).toDate();
 
     // Show time picker for extension
     final TimeOfDay? selectedTime = await showTimePicker(
@@ -288,8 +323,8 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
     for (var doc in conflictQuery.docs) {
       if (doc.id == booking.id) continue; // Skip current booking
 
-      final existingStart = (doc['reservationStartTime'] as Timestamp).toDate();
-      final existingEnd = (doc['reservationEndTime'] as Timestamp).toDate();
+      final existingStart = (doc['startTime'] as Timestamp).toDate();
+      final existingEnd = (doc['endTime'] as Timestamp).toDate();
 
       if (currentEndTime.isBefore(existingEnd) && newEndTime.isAfter(existingStart)) {
         hasConflict = true;
@@ -311,7 +346,7 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
           .collection('reservations')
           .doc(booking.id)
           .update({
-        'reservationEndTime': Timestamp.fromDate(newEndTime),
+        'endTime': Timestamp.fromDate(newEndTime),
         'extendedDuration': true,
       });
 
@@ -351,10 +386,16 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
+      final slotId = booking['slotId'] as String;
+
+      // Update reservation status to cancelled
       await FirebaseFirestore.instance
           .collection('reservations')
           .doc(booking.id)
           .update({'status': 'cancelled'});
+
+      // Update slot status back to available
+      await _parkingService.updateSlotStatus(slotId, 'available');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

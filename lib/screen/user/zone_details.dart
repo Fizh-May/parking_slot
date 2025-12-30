@@ -1,22 +1,56 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/data.dart';
 import '../../services/parking_service.dart';
 import 'slot_detail.dart';
 
-class ZoneDetailsScreen extends StatelessWidget {
+class ZoneDetailsScreen extends StatefulWidget {
   final Zone zone;
 
   const ZoneDetailsScreen({super.key, required this.zone});
 
   @override
+  State<ZoneDetailsScreen> createState() => _ZoneDetailsScreenState();
+}
+
+class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
+  final ParkingService _parkingService = ParkingService();
+  Timer? _expiredCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for expired reservations when the screen loads
+    _parkingService.checkAndUpdateExpiredReservations();
+    // Start periodic check for expired reservations
+    _startExpiredCheckTimer();
+  }
+
+  @override
+  void dispose() {
+    // Cancel the timer when the widget is disposed
+    _expiredCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startExpiredCheckTimer() {
+    // Check every 30 seconds for expired reservations
+    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _parkingService.checkAndUpdateExpiredReservations();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(zone.name, style: TextStyle(fontSize: 25, color: Colors.white)),
+        title: Text(widget.zone.name, style: TextStyle(fontSize: 25, color: Colors.white)),
         backgroundColor: Colors.blue,
       ),
-      body: FutureBuilder<List<Slot>>(
-        future: ParkingService().getSlotsByZone(zone.id),
+      body: StreamBuilder<List<Slot>>(
+        stream: _parkingService.getSlotsByZoneStream(widget.zone.id),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
