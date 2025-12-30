@@ -21,10 +21,6 @@ class _ReservationManagementState extends State<ReservationManagement> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Reservation Management',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
               PopupMenuButton<String>(
                 onSelected: (value) {
                   setState(() {

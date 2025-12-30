@@ -17,6 +17,15 @@ class AdminScreen extends StatefulWidget {
 class _AdminScreenState extends State<AdminScreen> {
   int _selectedIndex = 0;
 
+  final List<String> _titles = [
+    'Dashboard',
+    'Zone Slot Management',
+    'Reservation Management',
+    'Usage History',
+    'User Management',
+    'User Requests'
+  ];
+
   final List<Widget> _widgetOptions = <Widget>[
     const AdminDashboard(),
     const ZoneSlotManagement(),
@@ -36,7 +45,10 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Panel', style: TextStyle(fontSize: 35, color: Colors.white),),
+        title: Text(
+          _titles[_selectedIndex],
+          style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.blue,
         actions: [
           IconButton(
@@ -51,39 +63,67 @@ class _AdminScreenState extends State<AdminScreen> {
         ],
       ),
       body: _widgetOptions.elementAt(_selectedIndex),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_parking),
-            label: 'Zones/Slots',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.book_online),
-            label: 'Reservations',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Users',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.pending),
-            label: 'Requests',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
-        onTap: _onItemTapped,
+      bottomNavigationBar: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            IconButton(
+              icon: Icon(Icons.dashboard, size: 30, color: _selectedIndex == 0 ? Colors.blue : Colors.grey,),
+              onPressed: () {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              },
+            ),
+
+            IconButton(
+              icon: Icon(Icons.local_parking, size: 30, color: _selectedIndex == 1 ? Colors.blue : Colors.grey,),
+              onPressed: () {
+                setState(() {
+                  _selectedIndex = 1;
+                });
+              },
+            ),
+
+            IconButton(
+              icon: Icon(Icons.book_online, size: 30, color: _selectedIndex == 2 ? Colors.blue : Colors.grey,),
+              onPressed: () {
+                setState(() {
+                  _selectedIndex = 2;
+                });
+              },
+            ),
+
+            IconButton(
+              icon: Icon(Icons.history, size: 30, color: _selectedIndex == 3 ? Colors.blue : Colors.grey,),
+              onPressed: () {
+                setState(() {
+                  _selectedIndex = 3;
+                });
+              },
+            ),
+
+            IconButton(
+              icon: Icon(Icons.people,size: 30,color: _selectedIndex == 4 ? Colors.blue : Colors.grey,),
+              onPressed: () {
+                setState(() {
+                  _selectedIndex = 4;
+                });
+              },
+            ),
+
+            IconButton(
+              icon: Icon(Icons.pending,size: 30,color: _selectedIndex == 5 ? Colors.blue : Colors.grey),
+              onPressed: () {setState(() {
+                  _selectedIndex = 5;
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-
-

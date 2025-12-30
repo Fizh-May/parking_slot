@@ -6,7 +6,6 @@ class AuthService {
 
   Future<User?> signInWithGoogle() async {
     try {
-      // Sign out first to force account selection
       await GoogleSignIn().signOut();
 
       final GoogleSignInAccount? googleUser =

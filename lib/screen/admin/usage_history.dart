@@ -22,13 +22,8 @@ class _UsageHistoryState extends State<UsageHistory> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Usage History',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
-      ),
       body: Column(
         children: [
-          // Search Bar
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

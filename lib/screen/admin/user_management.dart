@@ -8,10 +8,6 @@ class UserManagement extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('User Management',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
-      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
         builder: (context, snapshot) {

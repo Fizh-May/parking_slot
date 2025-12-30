@@ -7,10 +7,6 @@ class UserRequests extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('User Requests',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('users').where('isActive', isEqualTo: false).snapshots(),
         builder: (context, snapshot) {

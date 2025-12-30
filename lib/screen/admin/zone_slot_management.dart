@@ -7,62 +7,39 @@ class ZoneSlotManagement extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Parking Zones Management',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),),
-      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('zones').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('Error loading zones'));
           }
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           final zones = snapshot.data!.docs;
 
           if (zones.isEmpty) {
             return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.local_parking, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No parking zones available',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                ],
+              child: Text(
+                'No parking zones available',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
               ),
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: _loadZones,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: zones.length,
-              itemBuilder: (context, index) {
-                final zone = zones[index];
-                return ZoneListItem(zone: zone);
-              },
-            ),
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: zones.length,
+            itemBuilder: (context, index) {
+              final zone = zones[index];
+              return ZoneListItem(zone: zone);
+            },
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Add new zone
-        },
-        child: const Icon(Icons.add),
-      ),
     );
-  }
-
-  // _loadZones method for refresh functionality
-  Future<void> _loadZones() async {
-    // No need to load zones manually, StreamBuilder does this
   }
 }
 
@@ -79,6 +56,7 @@ class ZoneListItem extends StatelessWidget {
           .where('zoneId', isEqualTo: zone.id)
           .snapshots(),
       builder: (context, slotsSnapshot) {
+        // ui loading page
         if (slotsSnapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             margin: EdgeInsets.only(bottom: 16),
@@ -89,20 +67,6 @@ class ZoneListItem extends StatelessWidget {
                 child: CircularProgressIndicator(),
               ),
               title: Text('Loading...'),
-            ),
-          );
-        }
-        if (slotsSnapshot.hasError) {
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              leading: const Icon(
-                Icons.error,
-                color: Colors.red,
-                size: 40,
-              ),
-              title: Text(zone['name']),
-              subtitle: const Text('Error loading slot count'),
             ),
           );
         }
@@ -133,8 +97,7 @@ class ZoneListItem extends StatelessWidget {
               children: [
                 Text('Total Slots: $totalSlots'),
                 Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
+                  spacing: 80,
                   children: [
                     _buildStatusRow(Colors.green, 'Available: $availableSlots'),
                     _buildStatusRow(Colors.orange, 'Reserved: $reservedSlots'),
@@ -158,7 +121,7 @@ class ZoneListItem extends StatelessWidget {
     );
   }
 
-  // Helper method to create status rows (Available, Reserved, Occupied)
+  // widget status (icon color, slot status, ..)
   Widget _buildStatusRow(Color color, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -188,7 +151,13 @@ class SlotManagement extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Slots in $zoneName', style: const TextStyle(color: Colors.white)),
+        title: Text(
+            'Slots in $zoneName',
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold
+            )),
         backgroundColor: Colors.blue,
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -219,12 +188,6 @@ class SlotManagement extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Add new slot
-        },
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
@@ -232,64 +195,101 @@ class SlotManagement extends StatelessWidget {
     Color color;
     String status = slot['status'];
     switch (status) {
-      case 'available':
+      case 'Available':
         color = Colors.green;
         break;
-      case 'reserved':
+      case 'Reserved':
         color = Colors.yellow;
         break;
-      case 'occupied':
+      case 'Occupied':
         color = Colors.red;
         break;
       default:
         color = Colors.grey;
     }
 
-    return GestureDetector(
-      onTap: () async {
-        // Show a dialog for the user to select a new status
-        String newStatus = await _showStatusDialog(context, status);
-        if (newStatus.isNotEmpty) {
-          await _updateSlotStatus(slot.id, newStatus);
-        }
-      },
-      child: Card(
-        color: color,
-        child: Center(
-          child: Text(
-            slot['slotName'],
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+    return Card(
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
+        ),
+        onPressed: () async {
+          String newStatus = await _showStatusDialog(context, status);
+          if (newStatus.isNotEmpty) {
+            await _updateSlotStatus(slot.id, newStatus);
+          }
+        },
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.local_parking,
+              size: 40,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              slot['slotName'],
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Show a dialog for selecting status
   Future<String> _showStatusDialog(BuildContext context, String currentStatus) async {
     String newStatus = currentStatus;
-
-    // Define status options
-    List<String> statuses = ['available', 'reserved', 'occupied'];
+    List<String> statuses = ['Available', 'Reserved', 'Occupied'];
 
     await showDialog<String>(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Select Slot Status'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: statuses.map((status) {
-              return RadioListTile<String>(
-                title: Text(status),
-                value: status,
-                groupValue: newStatus,
-                onChanged: (value) {
-                  newStatus = value!;
-                  Navigator.of(context).pop();
-                },
-              );
-            }).toList(),
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Change Slot Status',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                DropdownButton<String>(
+                  value: newStatus,
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      newStatus = newValue;
+                      Navigator.of(context).pop(newValue);
+                    }
+                  },
+                  items: statuses.map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -298,7 +298,7 @@ class SlotManagement extends StatelessWidget {
     return newStatus;
   }
 
-  // Update slot status in Firestore
+
   Future<void> _updateSlotStatus(String slotId, String newStatus) async {
     try {
       final slotRef = FirebaseFirestore.instance.collection('parking_slots').doc(slotId);

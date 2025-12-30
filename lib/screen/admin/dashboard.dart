@@ -86,10 +86,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Admin Dashboard',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
           const SizedBox(height: 20),
           Expanded(
             child: isLoading
