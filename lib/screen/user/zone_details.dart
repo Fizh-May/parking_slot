@@ -34,8 +34,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   }
 
   void _startExpiredCheckTimer() {
-    // Check every 30 seconds for expired reservations
-    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         _parkingService.checkAndUpdateExpiredReservations();
       }

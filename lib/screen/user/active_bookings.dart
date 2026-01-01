@@ -31,8 +31,7 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
   }
 
   void _startExpiredCheckTimer() {
-    // Check every minute for expired reservations
-    _expiredCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         _parkingService.checkAndUpdateExpiredReservations();
       }

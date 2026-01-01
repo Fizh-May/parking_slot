@@ -36,8 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _startExpiredCheckTimer() {
-    // Check every 3 seconds for expired reservations
-    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+    _expiredCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         _parkingService.checkAndUpdateExpiredReservations();
       }
