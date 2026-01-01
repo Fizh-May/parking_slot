@@ -63,6 +63,26 @@ class UserManagement extends StatelessWidget {
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) => _handleUserAction(context, value, user),
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      PopupMenuItem<String>(
+                        value: 'set_resident',
+                        child: Row(
+                          children: [
+                            Icon(Icons.person, color: Colors.green),
+                            SizedBox(width: 8),
+                            Text('Set as Resident'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'set_security',
+                        child: Row(
+                          children: [
+                            Icon(Icons.security, color: Colors.orange),
+                            SizedBox(width: 8),
+                            Text('Set as Security'),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem<String>(
                         value: 'view_history',
                         child: Row(
@@ -96,12 +116,50 @@ class UserManagement extends StatelessWidget {
 
   void _handleUserAction(BuildContext context, String action, DocumentSnapshot user) {
     switch (action) {
+      case 'set_resident':
+        _performSetRole(context, user, 'resident');
+        break;
+      case 'set_security':
+        _performSetRole(context, user, 'security');
+        break;
       case 'view_history':
         _viewUserHistory(context, user);
         break;
       case 'delete_user':
         _deleteUser(context, user);
         break;
+    }
+  }
+
+
+
+  Future<void> _performSetRole(BuildContext context, DocumentSnapshot user, String newRole) async {
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Updating user role...')),
+      );
+
+      // Update user role in Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+        'role': newRole,
+      });
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('User role updated to ${newRole.toUpperCase()}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating user role: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

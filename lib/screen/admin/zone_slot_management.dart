@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../models/data.dart';
 
 class ZoneSlotManagement extends StatelessWidget {
   const ZoneSlotManagement({super.key});
@@ -71,11 +72,11 @@ class ZoneListItem extends StatelessWidget {
           );
         }
 
-        final slots = slotsSnapshot.data!.docs;
+        final slots = slotsSnapshot.data!.docs.map((doc) => Slot.fromFirestore(doc)).toList();
         final totalSlots = slots.length;
-        final availableSlots = slots.where((slot) => slot['status'] == 'available').length;
-        final reservedSlots = slots.where((slot) => slot['status'] == 'reserved').length;
-        final occupiedSlots = slots.where((slot) => slot['status'] == 'occupied').length;
+        final availableSlots = slots.where((slot) => slot.status == SlotStatus.available).length;
+        final reservedSlots = slots.where((slot) => slot.status == SlotStatus.reserved).length;
+        final occupiedSlots = slots.where((slot) => slot.status == SlotStatus.occupied).length;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
@@ -191,21 +192,19 @@ class SlotManagement extends StatelessWidget {
     );
   }
 
-  Widget _buildSlotCard(BuildContext context, DocumentSnapshot slot) {
+  Widget _buildSlotCard(BuildContext context, DocumentSnapshot slotDoc) {
+    final slot = Slot.fromFirestore(slotDoc);
     Color color;
-    String status = slot['status'];
-    switch (status) {
-      case 'Available':
+    switch (slot.status) {
+      case SlotStatus.available:
         color = Colors.green;
         break;
-      case 'Reserved':
-        color = Colors.yellow;
+      case SlotStatus.reserved:
+        color = Colors.orange;
         break;
-      case 'Occupied':
+      case SlotStatus.occupied:
         color = Colors.red;
         break;
-      default:
-        color = Colors.grey;
     }
 
     return Card(
@@ -217,7 +216,8 @@ class SlotManagement extends StatelessWidget {
           ),
         ),
         onPressed: () async {
-          String newStatus = await _showStatusDialog(context, status);
+          String currentStatus = slot.status.toString().split('.').last;
+          String newStatus = await _showStatusDialog(context, currentStatus);
           if (newStatus.isNotEmpty) {
             await _updateSlotStatus(slot.id, newStatus);
           }
@@ -232,7 +232,7 @@ class SlotManagement extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              slot['slotName'],
+              slot.slotName,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -248,7 +248,8 @@ class SlotManagement extends StatelessWidget {
 
   Future<String> _showStatusDialog(BuildContext context, String currentStatus) async {
     String newStatus = currentStatus;
-    List<String> statuses = ['Available', 'Reserved', 'Occupied'];
+    List<String> statuses = ['available', 'reserved', 'occupied'];
+    List<String> displayNames = ['Available', 'Reserved', 'Occupied'];
 
     await showDialog<String>(
       context: context,
@@ -281,12 +282,12 @@ class SlotManagement extends StatelessWidget {
                       Navigator.of(context).pop(newValue);
                     }
                   },
-                  items: statuses.map<DropdownMenuItem<String>>((String value) {
+                  items: List.generate(statuses.length, (index) {
                     return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
+                      value: statuses[index],
+                      child: Text(displayNames[index]),
                     );
-                  }).toList(),
+                  }),
                 ),
               ],
             ),
@@ -302,14 +303,48 @@ class SlotManagement extends StatelessWidget {
   Future<void> _updateSlotStatus(String slotId, String newStatus) async {
     try {
       final slotRef = FirebaseFirestore.instance.collection('parking_slots').doc(slotId);
+
+      // Update the slot status
       await slotRef.update({
         'status': newStatus,
         'isReserved': newStatus == 'reserved',
         'isOccupied': newStatus == 'occupied',
         'isAvailable': newStatus == 'available',
       });
+
+      // Update the zone counts
+      await _updateZoneCounts(zoneId);
     } catch (e) {
       print('Error updating slot status: $e');
+    }
+  }
+
+  Future<void> _updateZoneCounts(String zoneId) async {
+    try {
+      // Get all slots for this zone
+      final slotsSnapshot = await FirebaseFirestore.instance
+          .collection('parking_slots')
+          .where('zoneId', isEqualTo: zoneId)
+          .get();
+
+      final slots = slotsSnapshot.docs.map((doc) => Slot.fromFirestore(doc)).toList();
+
+      final availableSlots = slots.where((slot) => slot.status == SlotStatus.available).length;
+      final reservedSlots = slots.where((slot) => slot.status == SlotStatus.reserved).length;
+      final occupiedSlots = slots.where((slot) => slot.status == SlotStatus.occupied).length;
+      final totalSlots = slots.length;
+
+      // Update the zone document with new counts
+      final zoneRef = FirebaseFirestore.instance.collection('zones').doc(zoneId);
+      await zoneRef.update({
+        'availableSlots': availableSlots,
+        'reservedSlots': reservedSlots,
+        'occupiedSlots': occupiedSlots,
+        'totalSlots': totalSlots,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error updating zone counts: $e');
     }
   }
 }

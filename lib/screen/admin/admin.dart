@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth.dart';
+import '../../services/user.dart';
 import 'dashboard.dart';
 import 'zone_slot_management.dart';
 import 'reservation_management.dart';
@@ -16,24 +18,81 @@ class AdminScreen extends StatefulWidget {
 
 class _AdminScreenState extends State<AdminScreen> {
   int _selectedIndex = 0;
+  bool _isSecurity = false;
+  bool _isLoading = true;
 
-  final List<String> _titles = [
-    'Dashboard',
-    'Zone Slot Management',
-    'Reservation Management',
-    'Usage History',
-    'User Management',
-    'User Requests'
-  ];
+  List<String> _titles = [];
+  List<Widget> _widgetOptions = [];
+  List<IconData> _icons = [];
 
-  final List<Widget> _widgetOptions = <Widget>[
-    const AdminDashboard(),
-    const ZoneSlotManagement(),
-    const ReservationManagement(),
-    const UsageHistory(),
-    const UserManagement(),
-    const UserRequests(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _initializeUserRole();
+  }
+
+  Future<void> _initializeUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _isSecurity = await UserService().isSecurity(user.uid);
+    }
+
+    if (_isSecurity) {
+      _titles = [
+        'Dashboard',
+        'Zone Slot Management',
+        'Reservation Management',
+      ];
+
+      _widgetOptions = <Widget>[
+        const AdminDashboard(),
+        const ZoneSlotManagement(),
+        const ReservationManagement(),
+      ];
+
+      _icons = [
+        Icons.dashboard,
+        Icons.local_parking,
+        Icons.book_online,
+      ];
+    } else {
+      _titles = [
+        'Dashboard',
+        'Zone Slot Management',
+        'Reservation Management',
+        'Usage History',
+        'User Management',
+        'User Requests'
+      ];
+
+      _widgetOptions = <Widget>[
+        const AdminDashboard(),
+        const ZoneSlotManagement(),
+        const ReservationManagement(),
+        const UsageHistory(),
+        const UserManagement(),
+        const UserRequests(),
+      ];
+
+      _icons = [
+        Icons.dashboard,
+        Icons.local_parking,
+        Icons.book_online,
+        Icons.history,
+        Icons.people,
+        Icons.pending,
+      ];
+    }
+
+    // Reset selected index if it's out of bounds for the current role
+    if (_selectedIndex >= _titles.length) {
+      _selectedIndex = 0;
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -62,68 +121,28 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ],
       ),
-      body: _widgetOptions.elementAt(_selectedIndex),
-      bottomNavigationBar: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: Icon(Icons.dashboard, size: 30, color: _selectedIndex == 0 ? Colors.blue : Colors.grey,),
-              onPressed: () {
-                setState(() {
-                  _selectedIndex = 0;
-                });
-              },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _widgetOptions.elementAt(_selectedIndex),
+      bottomNavigationBar: _isLoading
+          ? null
+          : Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(_icons.length, (index) {
+                  return IconButton(
+                    icon: Icon(_icons[index], size: 30, color: _selectedIndex == index ? Colors.blue : Colors.grey),
+                    onPressed: () {
+                      setState(() {
+                        _selectedIndex = index;
+                      });
+                    },
+                  );
+                }),
+              ),
             ),
-
-            IconButton(
-              icon: Icon(Icons.local_parking, size: 30, color: _selectedIndex == 1 ? Colors.blue : Colors.grey,),
-              onPressed: () {
-                setState(() {
-                  _selectedIndex = 1;
-                });
-              },
-            ),
-
-            IconButton(
-              icon: Icon(Icons.book_online, size: 30, color: _selectedIndex == 2 ? Colors.blue : Colors.grey,),
-              onPressed: () {
-                setState(() {
-                  _selectedIndex = 2;
-                });
-              },
-            ),
-
-            IconButton(
-              icon: Icon(Icons.history, size: 30, color: _selectedIndex == 3 ? Colors.blue : Colors.grey,),
-              onPressed: () {
-                setState(() {
-                  _selectedIndex = 3;
-                });
-              },
-            ),
-
-            IconButton(
-              icon: Icon(Icons.people,size: 30,color: _selectedIndex == 4 ? Colors.blue : Colors.grey,),
-              onPressed: () {
-                setState(() {
-                  _selectedIndex = 4;
-                });
-              },
-            ),
-
-            IconButton(
-              icon: Icon(Icons.pending,size: 30,color: _selectedIndex == 5 ? Colors.blue : Colors.grey),
-              onPressed: () {setState(() {
-                  _selectedIndex = 5;
-                });
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -92,7 +92,8 @@ class LoginScreen extends StatelessWidget {
                         final isActive = await userService.isUserActive(user.uid);
                         if (isActive){
                           final isAdmin = await userService.isAdmin(user.uid);
-                          if (isAdmin) {
+                          final isSecurity = await userService.isSecurity(user.uid);
+                          if (isAdmin || isSecurity) {
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(builder: (_) => AdminScreen()),

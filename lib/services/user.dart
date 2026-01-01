@@ -44,6 +44,12 @@ class UserService {
     return (data?['role'] as String?) == 'admin';
   }
 
+  Future<bool> isSecurity(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+    final data = doc.data();
+    return (data?['role'] as String?) == 'security';
+  }
+
   Future<void> updateParkingLocation(String uid, String parkingLocation) async {
     await _db.collection('users').doc(uid).set(
       {'parkingLocation': parkingLocation},
