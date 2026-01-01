@@ -11,7 +11,7 @@ class UsageHistory extends StatefulWidget {
 class _UsageHistoryState extends State<UsageHistory> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String _searchType = 'user'; // 'user' or 'slot'
+  String _searchType = 'user'; // by user or slot
 
   @override
   void dispose() {
@@ -55,7 +55,7 @@ class _UsageHistoryState extends State<UsageHistory> {
                   },
                 ),
                 const SizedBox(height: 8),
-                // Search Type Toggle
+                // toggle
                 Row(
                   children: [
                     Expanded(
@@ -96,7 +96,7 @@ class _UsageHistoryState extends State<UsageHistory> {
               ],
             ),
           ),
-          // History List
+          // list history
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -112,15 +112,15 @@ class _UsageHistoryState extends State<UsageHistory> {
                 }
                 final history = snapshot.data!.docs;
 
-                // Filter history based on search
+                // lọc history theo input search
                 final filteredHistory = _searchQuery.isEmpty
                     ? history
                     : history.where((record) {
                         if (_searchType == 'user') {
-                          // For user search, we'll need to check user data
-                          return true; // Will be filtered in the FutureBuilder
+                          // search by user cần check data
+                          return true; // lọc sau ở FutureBuilder
                         } else {
-                          // For slot search
+                          // search theo slot id
                           final slotId = record['slotId']?.toString().toLowerCase() ?? '';
                           return slotId.contains(_searchQuery);
                         }
@@ -180,10 +180,10 @@ class _UsageHistoryState extends State<UsageHistory> {
                         final userData = userSnapshot.data;
                         final userName = userData?['displayName'] ?? record['userId'] ?? 'Unknown';
 
-                        // Filter by user name if searching by user
+                        // lọc bằng username nếu chọn lọc theo user
                         if (_searchQuery.isNotEmpty && _searchType == 'user') {
                           if (!userName.toLowerCase().contains(_searchQuery)) {
-                            return const SizedBox.shrink();
+                            return Container();
                           }
                         }
 

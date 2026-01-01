@@ -84,28 +84,27 @@ class _AdminScreenState extends State<AdminScreen> {
       ];
     }
 
-    // Reset selected index if it's out of bounds for the current role
-    if (_selectedIndex >= _titles.length) {
-      _selectedIndex = 0;
-    }
+    // if (_selectedIndex >= _titles.length) {
+    //   _selectedIndex = 0;
+    // }
 
     setState(() {
       _isLoading = false;
     });
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+  // void _onItemTapped(int index) {
+  //   setState(() {
+  //     _selectedIndex = index;
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isLoading ? 'Loading...' : _titles[_selectedIndex],
+          _titles[_selectedIndex],
           style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue,

@@ -43,8 +43,8 @@ class AdminDashboard extends StatelessWidget {
 
                     return GridView.count(
                       crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 20,
+                      mainAxisSpacing: 20,
                       children: [
                         _buildDashboardCard('Available Slots', availableSlots.toString(), Colors.green, Icons.check_circle),
                         _buildDashboardCard('Reserved Slots', reservedSlots.toString(), Colors.orange, Icons.schedule),

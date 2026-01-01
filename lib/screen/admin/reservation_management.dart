@@ -21,30 +21,20 @@ class _ReservationManagementState extends State<ReservationManagement> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              PopupMenuButton<String>(
-                onSelected: (value) {
+              DropdownButton<String>(
+                value: _selectedFilter,
+                onChanged: (String? newValue) {
                   setState(() {
-                    _selectedFilter = value;
+                    _selectedFilter = newValue!;
                   });
                 },
-                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                  const PopupMenuItem<String>(
-                    value: 'all',
-                    child: Text('All Reservations'),
-                  ),
-                  const PopupMenuItem<String>(
-                    value: 'active',
-                    child: Text('Active Only'),
-                  ),
-                  const PopupMenuItem<String>(
-                    value: 'completed',
-                    child: Text('Completed Only'),
-                  ),
-                  const PopupMenuItem<String>(
-                    value: 'cancelled',
-                    child: Text('Cancelled Only'),
-                  ),
-                ],
+                items: <String>['all', 'active', 'completed', 'cancelled']
+                    .map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value[0].toUpperCase() + value.substring(1)),
+                  );
+                }).toList(),
                 icon: const Icon(Icons.filter_list),
               ),
             ],
@@ -65,7 +55,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
                 }
                 final allReservations = snapshot.data!.docs;
 
-                // Filter reservations based on selected filter
+                // lọc reservation theo filter
                 final reservations = _selectedFilter == 'all'
                     ? allReservations
                     : allReservations.where((doc) => doc['status'] == _selectedFilter).toList();
@@ -92,7 +82,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
                     final reservation = reservations[index];
                     final userId = reservation['userId'];
 
-                    // Truy vấn tên người dùng từ collection 'users'
+                    // query từ collection của users để lấy data users
                     return FutureBuilder<DocumentSnapshot>(
                       future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
                       builder: (context, userSnapshot) {
@@ -116,9 +106,8 @@ class _ReservationManagementState extends State<ReservationManagement> {
                           );
                         }
 
-                        // Kiểm tra dữ liệu của người dùng
                         final userData = userSnapshot.data;
-                        final userName = userData?['displayName'] ?? 'Unknown';
+                        final userName = userData?['displayName'] ?? '';
                         final userEmail = userData?['email'] ?? '';
 
                         return Card(
@@ -136,11 +125,11 @@ class _ReservationManagementState extends State<ReservationManagement> {
                                         children: [
                                           Text(
                                             userName,
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                                           ),
                                           Text(
                                             userEmail,
-                                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                            style: const TextStyle(fontSize: 14, color: Colors.grey),
                                           ),
                                         ],
                                       ),
@@ -152,8 +141,8 @@ class _ReservationManagementState extends State<ReservationManagement> {
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
-                                        reservation['status'] ?? 'Unknown',
-                                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                                        reservation['status'] ?? '',
+                                        style: const TextStyle(color: Colors.white, fontSize: 14),
                                       ),
                                     ),
                                   ],
@@ -161,20 +150,36 @@ class _ReservationManagementState extends State<ReservationManagement> {
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
-                                    const Icon(Icons.local_parking, size: 16, color: Colors.grey),
+                                    const Icon(Icons.local_parking, size: 18, color: Colors.grey),
                                     const SizedBox(width: 4),
-                                    Text('Slot: ${reservation['slotId'] ?? 'Unknown'}'),
+                                    FutureBuilder<DocumentSnapshot>(
+                                      future: FirebaseFirestore.instance
+                                          .collection('parking_slots')
+                                          .doc(reservation['slotId'])
+                                          .get(),
+                                      builder: (context, slotSnapshot) {
+                                        if (slotSnapshot.connectionState == ConnectionState.waiting) {
+                                          return const Text('Loading...');
+                                        }
+                                        if (slotSnapshot.hasError) {
+                                          return const Text('Error loading slot');
+                                        }
+                                        final slotData = slotSnapshot.data;
+                                        final slotName = slotData?['slotName'] ?? 'Unknown';
+                                        return Text('Slot: $slotName', style: TextStyle(fontSize: 15, color: Colors.grey));
+                                      },
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                                    const Icon(Icons.access_time, size: 18, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
                                         'Start: ${_formatTimestamp(reservation['startTime'])}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        style: const TextStyle(fontSize: 15, color: Colors.grey),
                                       ),
                                     ),
                                   ],
@@ -187,7 +192,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
                                     Expanded(
                                       child: Text(
                                         'End: ${_formatTimestamp(reservation['endTime'])}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        style: const TextStyle(fontSize: 15, color: Colors.grey),
                                       ),
                                     ),
                                   ],
@@ -218,7 +223,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
     final List<Widget> buttons = [];
 
     if (status == 'active') {
-      // Extend reservation button
+      // nút extend
       buttons.add(
         TextButton.icon(
           onPressed: () => _extendReservation(reservation),
@@ -228,7 +233,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
         ),
       );
 
-      // Cancel reservation button
+      // nút cancel
       buttons.add(
         TextButton.icon(
           onPressed: () => _cancelReservation(reservation),
@@ -238,7 +243,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
         ),
       );
     } else if (status == 'completed') {
-      // View details button
+      // nút xem chi tiết nếu completed
       buttons.add(
         TextButton.icon(
           onPressed: () => _viewReservationDetails(reservation),
@@ -308,7 +313,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
         'extendedDuration': true,
       });
 
-      // Update slot reservation end time
+      // update end time sau khi extend
       await FirebaseFirestore.instance
           .collection('parking_slots')
           .doc(reservation['slotId'])
@@ -369,7 +374,7 @@ class _ReservationManagementState extends State<ReservationManagement> {
           .doc(reservation.id)
           .update({'status': 'cancelled'});
 
-      // Update slot status back to available
+      // setup slot đó available
       await FirebaseFirestore.instance
           .collection('parking_slots')
           .doc(reservation['slotId'])
@@ -450,18 +455,17 @@ class _ReservationManagementState extends State<ReservationManagement> {
     }
   }
 
-  // Function to format Firestore Timestamps
   String _formatTimestamp(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown'; // Handle null values
+    if (timestamp == null) return 'Unknown';
     try {
       if (timestamp is Timestamp) {
         final dateTime = timestamp.toDate();
         return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
       }
-      return 'Invalid Timestamp'; // Handle cases where the type is not Timestamp
+      return 'Invalid Timestamp';
     } catch (e) {
       print('Error formatting timestamp: $e');
-      return 'Invalid date'; // Return 'Invalid date' for errors
+      return 'Invalid date';
     }
   }
 }
