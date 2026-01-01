@@ -231,7 +231,19 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 28),
+                      child: Text(
+                        'Note: Extend time can only be extended by a maximum of 2 hours and can only be done once',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold, // Use fontWeight.bold for bold text
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     if (isActive && timeRemaining.isNegative == false)
                       Row(
                         children: [
@@ -285,12 +297,32 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
 
   Future<void> _extendBooking(DocumentSnapshot booking) async {
     final currentEndTime = (booking['endTime'] as Timestamp).toDate();
+    final originalStartTime = (booking['startTime'] as Timestamp).toDate();
 
-    // Show time picker for extension
+    // Calculate maximum allowed end time (4 hours from original start time)
+    final maxAllowedEndTime = originalStartTime.add(const Duration(hours: 4));
+    final endOfDay = DateTime(currentEndTime.year, currentEndTime.month, currentEndTime.day, 23, 59);
+    final absoluteMaxTime = maxAllowedEndTime.isBefore(endOfDay) ? maxAllowedEndTime : endOfDay;
+
+    // Check if already at maximum extension
+    if (currentEndTime.isAtSameMomentAs(absoluteMaxTime) || currentEndTime.isAfter(absoluteMaxTime)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maximum extension limit reached (4 hours total)')),
+        );
+      }
+      return;
+    }
+
+    // Calculate maximum extension time (2 hours from current end time, but not exceeding 4 hours total)
+    final maxExtensionFromCurrent = currentEndTime.add(const Duration(hours: 2));
+    final maxPossibleEndTime = maxExtensionFromCurrent.isBefore(absoluteMaxTime) ? maxExtensionFromCurrent : absoluteMaxTime;
+
+    // Show time picker for extension with constraints
     final TimeOfDay? selectedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(currentEndTime),
-      helpText: 'Select new end time',
+      initialTime: TimeOfDay.fromDateTime(currentEndTime.add(const Duration(hours: 1))), // Suggest 1 hour extension
+      helpText: 'Select new end time (extend by 1-2 hours, max 4 hours total)',
     );
 
     if (selectedTime == null || !mounted) return;
@@ -307,6 +339,27 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('New end time must be after current end time')),
+        );
+      }
+      return;
+    }
+
+    // Check extension duration (must be 1-2 hours)
+    final extensionDuration = newEndTime.difference(currentEndTime);
+    if (extensionDuration < const Duration(hours: 1) || extensionDuration > const Duration(hours: 2)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Extension must be between 1-2 hours')),
+        );
+      }
+      return;
+    }
+
+    // Check if extension exceeds 4-hour total limit
+    if (newEndTime.isAfter(absoluteMaxTime)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot extend beyond 4 hours from start time')),
         );
       }
       return;

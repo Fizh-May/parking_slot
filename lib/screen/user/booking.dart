@@ -28,12 +28,12 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    // Set default start time to now
+    // Set default start time to now, rounded to nearest 15 minutes
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
-    _startTime = TimeOfDay(hour: now.hour, minute: (now.minute ~/ 15) * 15); // Round to nearest 15 minutes
+    _startTime = TimeOfDay(hour: now.hour, minute: (now.minute ~/ 15) * 15);
 
-    // Set default end time to 2 hours later
+    // Set default end time to 2 hours later (maximum allowed)
     final endTime = now.add(const Duration(hours: 2));
     _endDate = DateTime(endTime.year, endTime.month, endTime.day);
     _endTime = TimeOfDay(hour: endTime.hour, minute: endTime.minute);
@@ -240,51 +240,125 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _selectStartDate(BuildContext context) async {
+    final DateTime now = DateTime.now();
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _startDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
+      initialDate: _startDate ?? now,
+      firstDate: now, // Can only book from today onwards
+      lastDate: now, // Can only book within the same day
     );
     if (picked != null) {
       setState(() {
         _startDate = picked;
-      });
-    }
-  }
-
-  Future<void> _selectStartTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        _startTime = picked;
-      });
-    }
-  }
-
-  Future<void> _selectEndDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _endDate ?? DateTime.now().add(const Duration(hours: 2)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (picked != null) {
-      setState(() {
+        // Reset end date to same day
         _endDate = picked;
       });
     }
   }
 
-  Future<void> _selectEndTime(BuildContext context) async {
+  Future<void> _selectStartTime(BuildContext context) async {
+    final DateTime now = DateTime.now();
+    final TimeOfDay minTime = TimeOfDay(hour: now.hour, minute: (now.minute ~/ 15) * 15);
+
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: _endTime ?? TimeOfDay.now(),
+      initialTime: _startTime ?? minTime,
     );
+
     if (picked != null) {
+      // Validate that start time is not in the past
+      final selectedDateTime = DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+        picked.hour,
+        picked.minute,
+      );
+
+      if (selectedDateTime.isBefore(now)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot select a time in the past')),
+        );
+        return;
+      }
+
+      setState(() {
+        _startTime = picked;
+        // Auto-set end time to 2 hours later, but not exceeding the day
+        final startDateTime = DateTime(
+          _startDate!.year,
+          _startDate!.month,
+          _startDate!.day,
+          picked.hour,
+          picked.minute,
+        );
+        final proposedEndTime = startDateTime.add(const Duration(hours: 2));
+        final endOfDay = DateTime(_startDate!.year, _startDate!.month, _startDate!.day, 23, 59);
+
+        final actualEndTime = proposedEndTime.isBefore(endOfDay) ? proposedEndTime : endOfDay;
+
+        _endDate = DateTime(actualEndTime.year, actualEndTime.month, actualEndTime.day);
+        _endTime = TimeOfDay(hour: actualEndTime.hour, minute: actualEndTime.minute);
+      });
+    }
+  }
+
+  Future<void> _selectEndDate(BuildContext context) async {
+    // End date must be the same as start date (same day booking only)
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Bookings must be within the same day')),
+    );
+  }
+
+  Future<void> _selectEndTime(BuildContext context) async {
+    if (_startDate == null || _startTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select start time first')),
+      );
+      return;
+    }
+
+    final startDateTime = DateTime(
+      _startDate!.year,
+      _startDate!.month,
+      _startDate!.day,
+      _startTime!.hour,
+      _startTime!.minute,
+    );
+
+    final maxEndTime = startDateTime.add(const Duration(hours: 2));
+    final endOfDay = DateTime(_startDate!.year, _startDate!.month, _startDate!.day, 23, 59);
+    final actualMaxTime = maxEndTime.isBefore(endOfDay) ? maxEndTime : endOfDay;
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? TimeOfDay.fromDateTime(actualMaxTime),
+    );
+
+    if (picked != null) {
+      final selectedEndTime = DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+        picked.hour,
+        picked.minute,
+      );
+
+      // Validate end time constraints
+      if (selectedEndTime.isBefore(startDateTime)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('End time must be after start time')),
+        );
+        return;
+      }
+
+      if (selectedEndTime.isAfter(actualMaxTime)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maximum booking duration is 2 hours')),
+        );
+        return;
+      }
+
       setState(() {
         _endTime = picked;
       });
@@ -376,6 +450,23 @@ class _BookingScreenState extends State<BookingScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
+      }
+
+      // Check if user already has an active booking
+      final existingBookings = await FirebaseFirestore.instance
+          .collection('reservations')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', whereIn: ['active', 'occupied'])
+          .get();
+
+      if (existingBookings.docs.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You can only have one active booking at a time')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
       }
 
       // Check for booking conflicts and create reservation
