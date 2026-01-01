@@ -204,7 +204,8 @@ class _UsageHistoryState extends State<UsageHistory> {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Slot: ${record['slotId'] ?? 'Unknown'}'),
+                                Text('Slot Name: ${record['slotName'] ?? 'Unknown'}'),
+                                Text('Slot ID: ${record['slotId'] ?? 'Unknown'}'),
                                 Text(
                                   'Duration: ${_formatDuration((record['usageStartTime'] as Timestamp).toDate(), (record['usageEndTime'] as Timestamp).toDate())}',
                                   style: const TextStyle(fontSize: 12, color: Colors.grey),

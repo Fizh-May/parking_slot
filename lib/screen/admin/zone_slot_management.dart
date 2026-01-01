@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/data.dart';
+import '../../services/parking_service.dart';
 
 class ZoneSlotManagement extends StatelessWidget {
   const ZoneSlotManagement({super.key});
@@ -302,15 +303,8 @@ class SlotManagement extends StatelessWidget {
 
   Future<void> _updateSlotStatus(String slotId, String newStatus) async {
     try {
-      final slotRef = FirebaseFirestore.instance.collection('parking_slots').doc(slotId);
-
-      // Update the slot status
-      await slotRef.update({
-        'status': newStatus,
-        'isReserved': newStatus == 'reserved',
-        'isOccupied': newStatus == 'occupied',
-        'isAvailable': newStatus == 'available',
-      });
+      final parkingService = ParkingService();
+      await parkingService.updateSlotStatus(slotId, newStatus);
 
       // Update the zone counts
       await _updateZoneCounts(zoneId);

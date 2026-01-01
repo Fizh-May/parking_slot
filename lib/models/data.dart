@@ -62,6 +62,7 @@ class Slot {
   final DateTime? reservedStart;
   final DateTime? reservedEnd;
   final String? userId;
+  final DateTime? usageStartTime;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -77,6 +78,7 @@ class Slot {
     this.reservedStart,
     this.reservedEnd,
     this.userId,
+    this.usageStartTime,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -95,6 +97,7 @@ class Slot {
       reservedStart: (data['reservedStart'] as Timestamp?)?.toDate(),
       reservedEnd: (data['reservedEnd'] as Timestamp?)?.toDate(),
       userId: data['userId'],
+      usageStartTime: (data['usageStartTime'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );

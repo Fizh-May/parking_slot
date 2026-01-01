@@ -87,6 +87,7 @@ class ParkingService {
         'isAvailable': false,
         'reservedStart': Timestamp.fromDate(startTime),
         'reservedEnd': Timestamp.fromDate(endTime),
+        'userId': userId, // Associate user with the slot
       });
 
       return reservationRef.id;
@@ -146,13 +147,104 @@ class ParkingService {
   Future<void> updateSlotStatus(String slotId, String status) async {
     try {
       final slotRef = _db.collection('parking_slots').doc(slotId);
-      await slotRef.update({
-        'status': status,
-        'isReserved': status == 'reserved',  // You can also use boolean fields for specific statuses
-        'isOccupied': status == 'occupied',  // Update occupied status as well if needed
-        'isAvailable': status == 'available',
-        'updatedAt': Timestamp.now(),
-      });
+
+      // Get current slot data to track transitions
+      final currentSlotDoc = await slotRef.get();
+      final currentData = currentSlotDoc.data();
+      final currentStatus = currentData?['status'] as String?;
+      final currentUserId = currentData?['userId'] as String?;
+      final currentUsageStartTime = (currentData?['usageStartTime'] as Timestamp?)?.toDate();
+
+      // Handle usage history tracking
+      if (currentStatus == 'available' && status == 'occupied') {
+        // Transition from available to occupied - start usage tracking
+        await slotRef.update({
+          'status': status,
+          'isReserved': false,
+          'isOccupied': true,
+          'isAvailable': false,
+          'usageStartTime': Timestamp.now(), // Record when usage started
+          'updatedAt': Timestamp.now(),
+        });
+      } else if (currentStatus == 'occupied' && status == 'available') {
+        // Transition from occupied to available - complete usage and save/update history
+        if (currentUsageStartTime != null && currentUserId != null) {
+        // Get slot name for display
+        final slotDocForName = await _db.collection('parking_slots').doc(slotId).get();
+        final slotName = slotDocForName.data()?['slotName'] ?? slotId;
+
+          // Check if there's an in_progress usage history record
+          final inProgressQuery = await _db.collection('usage_history')
+              .where('slotId', isEqualTo: slotId)
+              .where('userId', isEqualTo: currentUserId)
+              .where('status', isEqualTo: 'in_progress')
+              .get();
+
+          if (inProgressQuery.docs.isNotEmpty) {
+            // Update existing in_progress record
+            await _db.collection('usage_history').doc(inProgressQuery.docs.first.id).update({
+              'usageEndTime': Timestamp.now(),
+              'status': 'completed',
+            });
+          } else {
+            // Fallback: save new completed record (for walk-in users)
+            await _db.collection('usage_history').add({
+              'userId': currentUserId,
+              'slotId': slotId,
+              'slotName': slotName,
+              'usageStartTime': Timestamp.fromDate(currentUsageStartTime),
+              'usageEndTime': Timestamp.now(),
+              'status': 'completed',
+              'timestamp': Timestamp.now(),
+            });
+          }
+
+          // Find and update associated reservation to completed
+          final reservationQuery = await _db.collection('reservations')
+              .where('slotId', isEqualTo: slotId)
+              .where('userId', isEqualTo: currentUserId)
+              .where('status', whereIn: ['active', 'occupied'])
+              .get();
+
+          for (var reservationDoc in reservationQuery.docs) {
+            await _db.collection('reservations').doc(reservationDoc.id).update({
+              'status': 'completed',
+            });
+          }
+        }
+
+        // Reset slot to available
+        await slotRef.update({
+          'status': status,
+          'isReserved': false,
+          'isOccupied': false,
+          'isAvailable': true,
+          'usageStartTime': null, // Clear usage start time
+          'userId': null, // Clear user association
+          'reservedStart': null, // Clear reservation times
+          'reservedEnd': null,
+          'updatedAt': Timestamp.now(),
+        });
+      } else if (currentStatus == 'reserved' && status == 'occupied') {
+        // Transition from reserved to occupied - start usage tracking
+        await slotRef.update({
+          'status': status,
+          'isReserved': false,
+          'isOccupied': true,
+          'isAvailable': false,
+          'usageStartTime': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+        });
+      } else {
+        // Other transitions (reserved to available, etc.)
+        await slotRef.update({
+          'status': status,
+          'isReserved': status == 'reserved',
+          'isOccupied': status == 'occupied',
+          'isAvailable': status == 'available',
+          'updatedAt': Timestamp.now(),
+        });
+      }
     } catch (e) {
       print('Error updating slot status: $e');
       throw Exception('Error updating slot status');
@@ -180,8 +272,8 @@ class ParkingService {
         final slotId = doc['slotId'] as String;
 
         // Check current slot status
-        final slotDoc = await _db.collection('parking_slots').doc(slotId).get();
-        final currentSlotStatus = slotDoc.data()?['status'] as String?;
+        final slotDocForStatus = await _db.collection('parking_slots').doc(slotId).get();
+        final currentSlotStatus = slotDocForStatus.data()?['status'] as String?;
 
         // If slot is occupied (someone is actually parked), don't auto-complete the reservation
         // The reservation will remain active until security manually changes slot status
@@ -196,16 +288,6 @@ class ParkingService {
 
         // Update slot status to available (only if not occupied)
         await updateSlotStatus(slotId, 'available');
-
-        // Add to usage history
-        await _db.collection('usage_history').add({
-          'userId': doc['userId'],
-          'slotId': slotId,
-          'usageStartTime': doc['startTime'],
-          'usageEndTime': doc['endTime'],
-          'status': 'completed',
-          'timestamp': Timestamp.now(),
-        });
       }
     } catch (e) {
       print('Error checking expired reservations: $e');

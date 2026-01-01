@@ -115,7 +115,15 @@ class UserHistoryScreen extends StatelessWidget {
                                   children: [
                                     const Icon(Icons.local_parking, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
-                                    Text('Slot: ${record['slotId'] ?? 'Unknown'}'),
+                                    Text('Slot Name: ${record['slotName'] ?? record['slotId'] ?? 'Unknown'}'),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.local_parking, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text('Slot ID: ${record['slotId'] ?? record['slotId'] ?? 'Unknown'}'),
                                   ],
                                 ),
                                 const SizedBox(height: 8),

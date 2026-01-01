@@ -235,7 +235,7 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
                     Padding(
                       padding: const EdgeInsets.only(left: 28),
                       child: Text(
-                        'Note: Extend time can only be extended by a maximum of 2 hours and can only be done once',
+                        'Note: You can extend the time by a maximum of 2 hours and the total booking duration can be extended up to 4 hours from the original start time.',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.black,
@@ -314,9 +314,6 @@ class _ActiveBookingsScreenState extends State<ActiveBookingsScreen> {
       return;
     }
 
-    // Calculate maximum extension time (2 hours from current end time, but not exceeding 4 hours total)
-    final maxExtensionFromCurrent = currentEndTime.add(const Duration(hours: 2));
-    final maxPossibleEndTime = maxExtensionFromCurrent.isBefore(absoluteMaxTime) ? maxExtensionFromCurrent : absoluteMaxTime;
 
     // Show time picker for extension with constraints
     final TimeOfDay? selectedTime = await showTimePicker(
