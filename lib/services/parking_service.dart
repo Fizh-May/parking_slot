@@ -179,12 +179,22 @@ class ParkingService {
         final reservationId = doc.id;
         final slotId = doc['slotId'] as String;
 
+        // Check current slot status
+        final slotDoc = await _db.collection('parking_slots').doc(slotId).get();
+        final currentSlotStatus = slotDoc.data()?['status'] as String?;
+
+        // If slot is occupied (someone is actually parked), don't auto-complete the reservation
+        // The reservation will remain active until security manually changes slot status
+        if (currentSlotStatus == 'occupied') {
+          continue;
+        }
+
         // Update reservation status to completed
         await _db.collection('reservations').doc(reservationId).update({
           'status': 'completed',
         });
 
-        // Update slot status to available
+        // Update slot status to available (only if not occupied)
         await updateSlotStatus(slotId, 'available');
 
         // Add to usage history

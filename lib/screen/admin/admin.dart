@@ -105,7 +105,7 @@ class _AdminScreenState extends State<AdminScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _titles[_selectedIndex],
+          _isLoading ? 'Loading...' : _titles[_selectedIndex],
           style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue,
