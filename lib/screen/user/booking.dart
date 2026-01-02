@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/data.dart';
 import '../../services/parking_service.dart';
+import 'confirmation.dart';
 
 
 class BookingScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _BookingScreenState extends State<BookingScreen> {
   TimeOfDay? _endTime;
   bool _isLoading = false;
 
+  final ParkingService _parkingService = ParkingService();
 
   @override
   void initState() {
@@ -307,7 +309,6 @@ class _BookingScreenState extends State<BookingScreen> {
       const SnackBar(content: Text('Bookings must be within the same day')),
     );
   }
-
   Future<void> _selectEndTime(BuildContext context) async {
     if (_startDate == null || _startTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -465,6 +466,37 @@ class _BookingScreenState extends State<BookingScreen> {
           _isLoading = false;
         });
         return;
+      }
+
+      // Check for booking conflicts and create reservation
+      final reservationId = await _parkingService.createReservation(
+        userId: user.uid,
+        slotId: widget.slot.id,
+        startTime: startDateTime,
+        endTime: endDateTime,
+      );
+
+      if (reservationId != null) {
+        // Update the slot status to reserved
+        await _parkingService.updateSlotStatus(widget.slot.id, 'reserved'); // Slot status becomes reserved
+
+        // Navigate to confirmation screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BookingConfirmationScreen(
+              slot: widget.slot,
+              zone: zone,
+              startTime: startDateTime,
+              endTime: endDateTime,
+              reservationId: reservationId,
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This slot is already booked for the selected time')),
+        );
       }
 
     } catch (e) {
